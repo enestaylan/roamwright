@@ -18,17 +18,17 @@ try {
   ]);
   const port = startup.match(/ port (\d+)/)?.[1];
   if (!port) throw new Error('Unexpected fixture server address: ' + startup);
-  const base = 'http://127.0.0.1:' + port;
+  const base = 'http://localhost:' + port;
   browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_EXECUTABLE || undefined,
-    args: ['--enable-webgl', '--enable-unsafe-swiftshader'],
+    args: ['--mute-audio', '--enable-webgl', '--enable-unsafe-swiftshader'],
   });
   const page = await browser.newPage({ viewport: { width: 720, height: 405 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.route('**/favicon.ico', route => route.fulfill({ status: 204 }));
-  for (const fixture of ['piece-batch', 'post-processing']) {
+  for (const fixture of ['piece-batch', 'post-processing', 'contact-shadows']) {
     await page.goto(base + '/test/' + fixture + '.html');
     await page.waitForFunction(() => {
       const result = document.getElementById('result');
