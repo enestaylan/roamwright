@@ -11,10 +11,13 @@ export function createHeightProbe(renderer, scene, { layer, size, above, below, 
   let target, depthMaterial;
   const clear = new THREE.Color();
   const prevLayers = [];
-  function select(object) {
+  function solidMesh(object) {
     const material = Array.isArray(object.material) ? object.material[0] : object.material;
-    const solid = object.isLight || (object.isMesh && object.onBeforeRender === THREE.Object3D.prototype.onBeforeRender &&
-      material && !material.transparent && material.depthWrite !== false && material.visible !== false);
+    return object.isMesh && object.onBeforeRender === THREE.Object3D.prototype.onBeforeRender &&
+      material && !material.transparent && material.depthWrite !== false && material.visible !== false;
+  }
+  function select(object) {
+    const solid = object.isLight || solidMesh(object);
     const before = object.layers.mask;
     const after = solid ? before | mask : before & ~mask;
     if (after !== before) {
@@ -23,10 +26,22 @@ export function createHeightProbe(renderer, scene, { layer, size, above, below, 
     }
   }
 
+  function depth() {
+    return depthMaterial ??= new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  }
+
+  // Prepare the same depth override as a measurement. The probe includes every visible light
+  // on its reserved layer, and preserves scene fog when rendering the override.
+  function warm(root, warmStandIns) {
+    const previous = view.layers.mask;
+    view.layers.enableAll();
+    try { return warmStandIns(root, o => solidMesh(o) && depth(), view, undefined, scene.fog, true); }
+    finally { view.layers.mask = previous; }
+  }
+
   async function measure(x, y, z, half) {
     if (beforeRead) await beforeRead();
     target ??= new THREE.WebGLRenderTarget(sampleSize, sampleSize, { depthBuffer: true });
-    depthMaterial ??= new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     Object.assign(view, { left:-half, right:half, top:half, bottom:-half, near:0, far:ceiling+floor });
     view.updateProjectionMatrix();
     view.position.set(x,y+ceiling,z);
@@ -40,7 +55,7 @@ export function createHeightProbe(renderer, scene, { layer, size, above, below, 
     let read;
     try {
       scene.traverse(select);
-      scene.overrideMaterial = depthMaterial;
+      scene.overrideMaterial = depth();
       scene.background = null;
       renderer.shadowMap.autoUpdate = renderer.shadowMap.needsUpdate = false;
       renderer.setRenderTarget(target);
@@ -72,5 +87,5 @@ export function createHeightProbe(renderer, scene, { layer, size, above, below, 
     depthMaterial?.dispose();
     target = depthMaterial = null;
   }
-  return { measure, dispose };
+  return { measure, warm, dispose };
 }

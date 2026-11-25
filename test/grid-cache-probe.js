@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createGridCache } from 'roamwright/runtime/grid-cache.js';
+import { createShaderWarmup } from 'roamwright/rendering/shader-warmup.js';
 import { createHeightProbe } from 'roamwright/rendering/height-probe.js';
 import { createEvents } from 'roamwright/runtime/events.js';
 
@@ -31,9 +32,19 @@ export async function run(canvas) {
   const box=new THREE.Mesh(new THREE.BoxGeometry(1,2,1),new THREE.MeshBasicMaterial());
   box.position.y=1;scene.add(box);
   const probe=createHeightProbe(renderer,scene,{size:16,above:12,below:2,layer:4});
+  scene.fog=new THREE.Fog(0xeeeeee,1,20);
+  const light=new THREE.DirectionalLight();
+  light.layers.set(5);
+  const instances=new THREE.InstancedMesh(box.geometry,[box.material],1);
+  instances.setMatrixAt(0,new THREE.Matrix4().makeTranslation(2,1,0));
+  scene.add(light,instances);
+  const warm=createShaderWarmup({renderer,scene,camera:new THREE.PerspectiveCamera()});
   try {
-    const [hit,miss]=await Promise.all([probe.measure(0,0,0,1),probe.measure(20,0,0,1)]);
+    await probe.warm(scene,warm.warmStandIns);
+    const prepared=renderer.info.programs.length;
+    const [hit,miss]=await Promise.all([probe.measure(0,0,0,4),probe.measure(20,0,0,1)]);
+    if(prepared!==2 || renderer.info.programs.length!==prepared)throw Error('first probe draw linked an unprepared depth program');
     if(Math.abs(hit-2)>.01||miss!==0||box.layers.mask!==1||renderer.getRenderTarget()!==null||scene.overrideMaterial)throw Error('height/state: '+[hit,miss]);
     return 'PASS persisted grid, version isolation, event order, overlapping height queries';
-  }finally{probe.dispose();box.geometry.dispose();box.material.dispose();renderer.dispose();}
+  }finally{warm.dispose();probe.dispose();box.geometry.dispose();box.material.dispose();renderer.dispose();}
 }

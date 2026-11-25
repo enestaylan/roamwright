@@ -104,10 +104,11 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
     }
   }
 
-  function warmStandIns(root, standIn, view, into, fog) {
+  function warmStandIns(root, standIn, view, into = target, fog, includeMaterialArrays = false) {
     const picked = new Map();
     root.traverse(object => {
-      if (!(object.isMesh || object.isPoints || object.isLine) || !object.material || Array.isArray(object.material)) return;
+      if (!(object.isMesh || object.isPoints || object.isLine) || !object.material) return;
+      if (!includeMaterialArrays && Array.isArray(object.material)) return;
       const m = standIn(object);
       if (!m) return;
       const key = [m.uuid, m.side, !!m.map, !!m.alphaMap, m.alphaTest > 0, meshKind(object)].join(':');
