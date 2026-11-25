@@ -120,6 +120,16 @@ Create the visible mesh with `createSky({ field, dome })` from `rendering/sky.js
 
 `rendering/daylight.js` provides `createSunMoonCycle()`, which writes orbital directions into two reusable vectors, and `createHazeFollower()`, which follows terrain height between camera cuts. `installHeightHaze()` from `rendering/height-haze.js` explicitly installs height-dependent fog for one Three.js runtime. Call it before compiling fog materials, set its haze and low mist parameters, then call `dispose()` when retiring those materials to restore the original fog shader chunks.
 
+## Terrain and water
+
+`geometry/terrain-chunks.js` manages a square height grid in independently refined mesh batches. Supply the scene parent, grid, material or material resolver, and options containing the camera, a `createBatch(material)` callback and optional distance thresholds. Call the returned update function each frame, or pass `true` to refresh all chunks immediately. Grid colors are sRGB bytes and heights are in world units. Each batch implements the `PieceBatch` add/remove interface.
+
+`geometry/shore-grid.js` provides independent sampled signed-distance grids for one or more closed outlines. `geometry/stream.js` builds ribbons along a path with flow vectors, bank depths and a widening spring. The caller places the mesh and chooses its material.
+
+`rendering/water-material.js` creates lake and stream materials with shared time, cloud and wake uniforms. Pass the depth UV transform and water level, the result of `createWakes()`, and the shader declarations from `seaParameters()`. The sea and beach functions in `rendering/sea-shaders.js` take the harbor dimensions and shore palette from the application. `followWake(object, length, beam)` returns a removal function. Update the tracked hulls each frame after world matrices have been updated.
+
+`rendering/planar-reflection.js` creates a cropped mirror camera and render target for a horizontal plane. Provide the main camera, renderer, scene, a drawing-size callback and a callback returning the lower X/Z corners of wet cells. Call `renderMirror(uniforms, level, strength, occluded, frame)` during rendering, `sizeMirror()` on resize and `dispose()` at teardown.
+
 ## Contributing and license
 
 See the [contributor guide](CONTRIBUTING.md) for local checks and release instructions. Use [GitHub Issues](https://github.com/enestaylan/roamwright/issues) for bugs and feature requests, or [report a vulnerability privately](https://github.com/enestaylan/roamwright/security/advisories/new).
