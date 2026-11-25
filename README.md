@@ -17,6 +17,10 @@ npm install roamwright
 
 npm resolves the Three.js peer in a new project. If you already use Three.js, the supported versions are **0.170.0** and **0.187.0**. To select one explicitly, run `npm install roamwright three@0.187.0`. The renderer requires WebGL 2.
 
+## Built with Roamwright
+
+[Malazan](https://enestaylan.com/malazan/) is an explorable world built with Roamwright. Fly over Darujhistan, Pale, and the Rhivi Plain from *Malazan Book of the Fallen*.
+
 ## Examples
 
 | Live example | What the example shows | Source |
