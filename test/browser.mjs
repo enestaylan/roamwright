@@ -28,7 +28,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.route('**/favicon.ico', route => route.fulfill({ status: 204 }));
-  for (const fixture of ['water-surface', 'road-surface', 'shadow-passes', 'shader-warmup', 'piece-batch', 'post-processing', 'contact-shadows', 'light-points', 'outline-render', 'strata-material', 'terrain-rock', 'atmosphere', 'grid-cache-probe', 'garment-material', 'particle-audio', 'material-lod', 'light-shafts-render']) {
+  for (const fixture of ['water-surface', 'road-surface', 'shadow-passes', 'shader-warmup', 'piece-batch', 'post-processing', 'contact-shadows', 'light-points', 'outline-render', 'strata-material', 'terrain-rock', 'atmosphere', 'grid-cache-probe', 'garment-material', 'particle-audio', 'material-lod', 'light-shafts-render', 'crowd-skinning']) {
     await page.goto(base + '/test/' + fixture + '.html');
     await page.waitForFunction(() => {
       const result = document.getElementById('result');
