@@ -105,6 +105,8 @@ renderer.render(scene, camera);
 | `runtime/device-quality.js` | `createDeviceQuality()` chooses an initial quality level from graphics renderer, available memory, cores and pointing-device information. The hardware query is cached. |
 | `rendering/particles.js`, `math/particle-noise.js` | Create additive and alpha instanced particle pools using a shared noise texture. Supply an effect scene, a perspective point-scale uniform, elapsed seconds and a lazy noise texture factory. For soft intersections, pass the post pipeline’s scene-depth uniforms. Fill the returned `spawn` record, call `pSpawn(pool)` and flush each pool before drawing. |
 | `runtime/spatial-audio.js` | Synthesize loopable pink or brown noise, position a Web Audio panner, and set the listener pose from a Three.js camera matrix. |
+| `rendering/material-lod.js` | Create screen-door fades using an opacity uniform, camera distance or an instance’s `aNear` attribute. Near and far variants share complementary coverage. Use `handOverShadow()` to skip instances hidden by their LOD and `twinMaterial(base, kind)` to cache clones for different mesh classes. |
+| `rendering/shadow-alignment.js` | Snap a shadow camera’s world-space target to texel boundaries or fit a square orthographic shadow frustum. `createShadowSnap()` retains its scratch vectors and supports unequal texel dimensions. |
 
 For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page. This path frees static CPU-side attributes after upload. Keep the seed or source data if your application needs to regenerate meshes after a context loss.
 

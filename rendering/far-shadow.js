@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createShadowSnap } from './shadow-alignment.js';
 
 // Opt in before compiling standard materials. The first shadow-casting directional light provides
 // direct light, and the second carries its far shadow map. The fragment float sunSeen is available
@@ -127,9 +128,7 @@ export function createFarShadow({scene, camera, direction, ground, config: FAR, 
   }
   const RELIEF_STEPS = 8,
     SPAN_STEP = FAR.range / 4;
-  const _right = new THREE.Vector3(),
-    _up = new THREE.Vector3(),
-    WORLD_UP = new THREE.Vector3(0, 1, 0);
+  const snapToTexels = createShadowSnap();
   function fitFar(x, z) {
     const L = direction,
       sinE = Math.max(0.05, L.y),
@@ -152,20 +151,13 @@ export function createFarShadow({scene, camera, direction, ground, config: FAR, 
       size = farSun.shadow.mapSize.x,
       across = (2 * R) / size,
       upward = span / size;
-    _right.crossVectors(WORLD_UP, L);
-    if (_right.lengthSq() < 1e-8) _right.set(1, 0, 0);
-    _right.normalize();
-    _up.crossVectors(L, _right);
-    const a = Math.round((x * _right.x + y0 * _right.y + z * _right.z) / across) * across,
-      u = Math.round((x * _up.x + y0 * _up.y + z * _up.z) / upward) * upward,
-      d = x * L.x + y0 * L.y + z * L.z;
     const c = farSun.shadow.camera;
     c.left = -R;
     c.right = R;
     c.bottom = Math.round((top + bottom - span) / 2 / upward) * upward;
     c.top = c.bottom + span;
     c.updateProjectionMatrix();
-    farSun.target.position.set(0, 0, 0).addScaledVector(_right, a).addScaledVector(_up, u).addScaledVector(L, d);
+    snapToTexels(farSun.target.position, x, y0, z, L, across, upward);
     farSun.position.copy(farSun.target.position).addScaledVector(L, FAR.lift);
   }
   function updateFarShadow(dt) {
