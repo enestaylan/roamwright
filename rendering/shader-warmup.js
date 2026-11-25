@@ -3,13 +3,26 @@ import * as THREE from 'three';
 // WebGLPrograms also selects variants by object and geometry, independently of material identity.
 function meshKind(object) {
   const { morphAttributes: morph = {}, attributes = {} } = object.geometry ?? {};
-  return [
-    object.isSkinnedMesh, object.isInstancedMesh, object.isInstancedMesh && object.instanceColor,
-    object.isInstancedMesh && object.morphTexture, object.isBatchedMesh, object.isBatchedMesh && object._colorsTexture,
-    object.isPoints, object.isPoints && attributes.uv, object.isLine, object.isSprite,
-    object.isSprite && object.center, morph.position?.length ?? 0, morph.normal?.length ?? 0, morph.color?.length ?? 0,
-    attributes.uv1, attributes.uv2, attributes.uv3, attributes.tangent, attributes.color?.itemSize === 4
-  ].map(value => typeof value === 'number' ? value : Number(!!value)).join(',');
+  let key = '';
+  if (object.isSkinnedMesh) key += ':skin';
+  if (object.isInstancedMesh) {
+    key += ':instances';
+    if (object.instanceColor) key += ':instanceColor';
+    if (object.morphTexture) key += ':instanceMorph';
+  }
+  if (object.isBatchedMesh) key += object._colorsTexture ? ':batchColor' : ':batch';
+  if (object.isPoints) key += attributes.uv ? ':pointUV' : ':points';
+  if (object.isLine) key += ':line';
+  if (object.isSprite) key += object.center ? ':spriteCenter' : ':sprite';
+  if (morph.position?.length || morph.normal?.length || morph.color?.length) {
+    key += ':morph:' + (morph.position?.length ?? 0) + ':' + (morph.normal?.length ?? 0) + ':' + (morph.color?.length ?? 0);
+  }
+  if (attributes.uv1) key += ':uv1';
+  if (attributes.uv2) key += ':uv2';
+  if (attributes.uv3) key += ':uv3';
+  if (attributes.tangent) key += ':tangent';
+  if (attributes.color?.itemSize === 4) key += ':rgba';
+  return key;
 }
 
 function representatives(root) {
@@ -32,12 +45,18 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), []);
   const twins = new Map();
   const pending = new Set();
+  const ready = new WeakSet();
   let timer;
 
   function poll() {
+    const live = new Set(renderer.info.programs);
     for (const entry of pending) {
       for (const program of entry.programs) {
-        if (!renderer.info.programs.includes(program) || program.isReady()) entry.programs.delete(program);
+        if (!live.has(program)) entry.programs.delete(program);
+        else if (ready.has(program) || program.isReady()) {
+          ready.add(program);
+          entry.programs.delete(program);
+        }
       }
       if (entry.programs.size) continue;
       pending.delete(entry);
@@ -46,16 +65,19 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
     timer = pending.size ? setTimeout(poll, pollIntervalMs) : undefined;
   }
 
-  function begin(objects, root, view, lit) {
+  function begin(traverse, root, view, lit, yieldIfReady = false) {
     const materials = renderer.compile({
-      traverse: visit => objects.forEach(visit),
+      traverse,
       traverseVisible: visit => { if (lit !== root) root.traverseVisible(visit); }
     }, view, lit);
     const programs = new Set();
     for (const m of materials) {
       const variants = renderer.properties.get(m).programs;
-      if (variants) for (const program of variants.values()) programs.add(program);
+      if (variants) for (const program of variants.values()) {
+        if (!ready.has(program)) programs.add(program);
+      }
     }
+    if (!programs.size && !yieldIfReady) return Promise.resolve();
     return new Promise(resolve => {
       pending.add({programs, resolve});
       if (timer === undefined) timer = setTimeout(poll, 0);
@@ -72,12 +94,13 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
   }
 
   function compiled(root, view = camera, lit = root) {
-    return begin(representatives(root), root, view, lit);
+    const objects = representatives(root);
+    return begin(visit => objects.forEach(visit), root, view, lit);
   }
 
   async function compiledInTurn(root, view = camera, lit = scene, into = null) {
     for (const object of representatives(root)) {
-      await withTarget(into, () => begin([object], root, view, lit));
+      await withTarget(into, () => begin(visit => visit(object), root, view, lit, true));
     }
   }
 
@@ -92,17 +115,19 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
     });
     return withTarget(into, () => {
       const previousFog = scene.fog;
-      const done = [];
       scene.fog = fog;
       try {
-        for (const object of picked.values()) {
-          const material = object.material;
-          try {
-            object.material = standIn(object);
-            done.push(begin([object], object, view, scene));
-          } finally { object.material = material; }
-        }
-        return Promise.all(done);
+        // Three gathers the target scene's lights once per compile. Submit the entire override pass
+        // together, applying mutable stand-ins only while Three prepares their representative.
+        return begin(visit => {
+          for (const object of picked.values()) {
+            const material = object.material;
+            try {
+              object.material = standIn(object);
+              visit(object);
+            } finally { object.material = material; }
+          }
+        }, scene, view, scene);
       } finally { scene.fog = previousFog; }
     });
   }
@@ -145,14 +170,16 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
   }
 
   function warmPostPasses() {
-    const done = [];
-    try {
-      for (const [material, into] of postMaterials()) {
-        quad.material = material;
-        done.push(withTarget(into === null ? null : target, () => compiled(quad, camera)));
-      }
-    } finally { quad.material = []; }
-    return Promise.all(done);
+    const screen = [], offscreen = [];
+    for (const [material, into] of postMaterials()) (into === null ? screen : offscreen).push(material);
+    // Three prepares each material in a material array against the same render target.
+    const compilePass = (materials, into) => {
+      if (!materials.length) return;
+      quad.material = materials;
+      return withTarget(into, () => compiled(quad, camera));
+    };
+    try { return Promise.all([compilePass(offscreen, target), compilePass(screen, null)]); }
+    finally { quad.material = []; }
   }
 
   function dispose() {

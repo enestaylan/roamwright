@@ -4,17 +4,19 @@
  * a timeout drains requests that would otherwise never resolve.
  */
 export function createFirstUse({ renderer, waitMs = 250, now = () => performance.now() }) {
+  const initialized = new WeakSet();
   const waiting = [];
   const asked = [];
   let frameBegan = -Infinity;
 
   function useProgram(program) {
-    if (!program.program) return;
+    if (!program.program || initialized.has(program.program)) return;
     const gl = renderer.getContext();
     const previous = renderer.debug.checkShaderErrors;
     try {
       renderer.debug.checkShaderErrors = previous && !gl.getProgramParameter(program.program, gl.LINK_STATUS);
       program.getUniforms();
+      initialized.add(program.program);
     } finally {
       renderer.debug.checkShaderErrors = previous;
     }

@@ -25,6 +25,16 @@ try {
   const previous = new THREE.WebGLRenderTarget(3, 3);
   renderer.setRenderTarget(previous);
   const warm = createShaderWarmup({renderer, camera, scene, postMaterials: () => [[material, null]]});
+  const override = new THREE.MeshDepthMaterial();
+  const instanced = new THREE.InstancedMesh(geometry, material, 1);
+  scene.add(instanced);
+  let scans = 0;
+  const scan = scene.traverseVisible;
+  scene.traverseVisible = function(visit) { scans++; return scan.call(this, visit); };
+  await warm.warmStandIns(scene, () => override, camera, previous, null);
+  scene.traverseVisible = scan;
+  if (scans !== 1 || box.material !== material || instanced.material !== material ||
+      renderer.properties.get(override).programs.size !== 2) throw Error('override pass missed a variant or repeated its light scan');
   const all = warm.compiled(scene);
   if (!warm.compilingNow()) throw Error('compile should be pending');
   await Promise.all([all, warm.compiledInTurn(box), warm.warmShadowPass(scene), warm.warmPostPasses()]);

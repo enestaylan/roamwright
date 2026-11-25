@@ -186,7 +186,11 @@ test('pending programs are warmed one per frame with the renderer debug setting 
   assert.deepEqual(warmed, [1]);
   queue.useAtFrameStart();
   await pending;
+  queue.useProgram(programs[0]);
   assert.deepEqual(warmed, [1, 2]);
+  programs[0].program = {};
+  queue.useProgram(programs[0]);
+  assert.deepEqual(warmed, [1, 2, 1]);
   assert.equal(renderer.debug.checkShaderErrors, true);
 });
 
