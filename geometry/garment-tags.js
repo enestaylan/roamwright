@@ -2,7 +2,7 @@
 const PLAIN = 0.1,
   CREASED = 0.9,
   HANGS = 0.5, // how creased cloth is that hangs in folds, uncrumpled
-  KIND = { wool: 0, linen: 1, silk: 2, leather: 3, plate: 5 }; // 4 is reserved for mail.
+  KIND = { wool: 0, linen: 1, silk: 2, leather: 3, mail: 4, plate: 5 };
 // Optional integer attributes store this many steps per unit.
 const TAG_STEPS = 16;
 // The tag of a garment of a kind, creased by so much (0 to 1).

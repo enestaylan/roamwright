@@ -12,7 +12,7 @@ const FOLDS = {
   slope: FOLD_SLOPES, //    the steepest slope each field's byte holds (of its height, for each tile)
 };
 const f = n => n.toFixed(4);
-// What each kind of garment is to the eye (KIND order; the fifth is mail's place): how much of the
+// What each kind of garment is to the eye (KIND order): how much of the
 // cloth texture's weave is smoothed away and the tone it is left at (of a plain weave's), how much of the long folds and of
 // the crumple it takes, how rough it is (a plain weave keeps the material's own: 0) and how much a metal.
 const KINDS = [
@@ -20,17 +20,27 @@ const KINDS = [
     [0.55, 1.14, 1, 1.35, 0.84, 0], // linen: a finer, paler weave, which crumples more
     [0.82, 1.04, 1.05, 0.6, 0.6, 0], // silk: its fine weave barely seen, and a soft sheen that moves with the light over its folds
     [0.92, 0.96, 0.22, 0.75, 0.56, 0], // leather: smooth, creased where it bends, with a low sheen
-    [1, 1, 0, 0, 0.5, 0], //         (mail)
+    [1, 0.87, 0, 0, 0.48, 0.48], // mail: small links over a dark backing
     [1, 1.12, 0, 0, 0.34, 0.6], //   plate: smooth and bright, no folds
   ],
   WEAVE_TONE = 0.76, // the tone of the plain weave (the cloth texture's, with its gain), which a smoothed kind keeps
   LEATHER = { grain: 0.14, worn: 0.18 },
-  PLATE_WEAR = 0.22, // how much darker plate is where it is dulled and dented than where it is rubbed bright // how much darker leather's creases are, and how much paler and smoother the ridges between them are worn
+  PLATE_WEAR = { face: 0.22, edge: 0.38 },
+  MAIL = { around: 120, up: 210, fade: [0.18, 0.44] }, // links to the circumference and rows per metre
   kindOf = column =>
     `(kind < 0.5 ? ${f(KINDS[0][column])} : kind < 1.5 ? ${f(KINDS[1][column])} : kind < 2.5 ? ${f(KINDS[2][column])} : kind < 3.5 ? ${f(KINDS[3][column])} : kind < 4.5 ? ${f(KINDS[4][column])} : ${f(KINDS[5][column])})`;
 // What the fragment shader declares: the textures; the folds' slopes across the screen (metres of height a pixel), which
 // GARMENT_FOLDS works out and FOLD_RELIEF turns the normal by; and how worn smooth a spot of leather is, for its sheen.
-const FOLD_PARS = '\nuniform sampler2D uFolds, uCrumple; vec2 gFold = vec2(0.0); float gWorn = 0.0;';
+const FOLD_PARS = `/* glsl */
+uniform sampler2D uFolds, uCrumple;
+vec2 gFold = vec2(0.0);
+float gWorn = 0.0;
+float mailLink(vec2 uv, float row, float aa) {
+  float x = fract(uv.x + 0.5 * mod(row, 2.0)) - 0.5;
+  float y = uv.y - row - 0.5;
+  float radius = length(vec2(x + y * (0.24 - 0.48 * mod(row, 2.0)), y * 0.74));
+  return 1.0 - smoothstep(0.052, 0.052 + aa, abs(radius - 0.42));
+}`;
 // In the surface's colour (after vSk, the tag, and vL, the point as built, are known): the garment's own weave or smoothness,
 // the folds' slopes, and their shade.
 const GARMENT_FOLDS = `/* glsl */
@@ -50,11 +60,25 @@ const GARMENT_FOLDS = `/* glsl */
           gFold = fall * ${f(FOLDS.deep[0] * FOLDS.slope[0])} * (hang.r * 2.0 - 1.0) * hu
             + crush * ${f(FOLDS.deep[1] * FOLDS.slope[1])} * ((crumple.r * 2.0 - 1.0) * cu + (crumple.g * 2.0 - 1.0) * cv);
           diffuseColor.rgb *= (1.0 - ${f(FOLDS.shade[0])} * fall * (1.0 - hang.g)) * (1.0 - ${f(FOLDS.shade[1])} * crush * (1.0 - crumple.b));
-          // plate is worn too: dulled and dented in patches, its ridges rubbed bright (the crumple's ridges, here only a tone)
+          // Plate's tag can mark an exposed edge. The existing crease field breaks up its polish.
           float plate = step(4.5, kind);
-          gWorn = max(leather, plate) * show * crumple.b;
-          diffuseColor.rgb *= 1.0 - plate * show * ${f(PLATE_WEAR)} * (1.0 - crumple.b);
+          float edge = plate * smoothstep(0.65, 0.96, crease) * mix(0.6, 1.0, crumple.b);
+          gWorn = show * max(max(leather, plate) * crumple.b, edge);
+          diffuseColor.rgb *= 1.0 + show * (${f(PLATE_WEAR.edge)} * edge - plate * ${f(PLATE_WEAR.face)} * (1.0 - crumple.b) * (1.0 - edge));
           diffuseColor.rgb *= 1.0 + leather * show * (${f(LEATHER.worn)} * crumple.b * crumple.b - ${f(LEATHER.grain)} * (1.0 - crumple.b));
+          if (kind == 4.0) {
+            float pixel = max(length(round) * ${f(MAIL.around)}, length(up) * ${f(MAIL.up)});
+            float detail = 1.0 - smoothstep(${f(MAIL.fade[0])}, ${f(MAIL.fade[1])}, pixel);
+            if (detail > 0.0) {
+              vec2 uv = vec2(turn * ${f(MAIL.around)}, vL.y * ${f(MAIL.up)});
+              float row = floor(uv.y), aa = max(0.02, pixel * 0.5);
+              // Alternating rows lean and stagger so adjacent links meet on the half-row.
+              float link = max(mailLink(uv, row, aa), mailLink(uv, row + (fract(uv.y) < 0.5 ? -1.0 : 1.0), aa));
+              diffuseColor.rgb *= 1.0 + detail * (link - 0.4) * 0.75;
+              gH += detail * (link - 0.4) * 0.10;
+              gWorn = detail * link * 0.32;
+            }
+          }
         } }`;
 // After the material's own roughness and metalness are known: the garment's.
 const GARMENT_SHEEN = `/* glsl */
