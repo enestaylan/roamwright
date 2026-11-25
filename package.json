@@ -1,7 +1,7 @@
 {
   "name": "roamwright",
   "version": "0.1.1",
-  "description": "A modular Three.js engine for procedural worlds in the browser.",
+  "description": "A Three.js toolkit for seeded terrain, batched geometry, and walkable or flyable worlds in the browser.",
   "type": "module",
   "license": "MIT",
   "author": "Enes TAYLAN",
@@ -25,6 +25,7 @@
     "rendering",
     "runtime",
     "examples",
+    "scripts/serve.py",
     "licenses",
     "LICENSE",
     "README.md",
@@ -32,7 +33,7 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.js",
-    "demo": "python3 -m http.server 8080 --bind 127.0.0.1",
+    "demo": "python3 scripts/serve.py",
     "test:browser": "node test/browser.mjs",
     "test:package": "node test/package.mjs"
   },

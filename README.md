@@ -3,9 +3,11 @@
 [![npm version](https://img.shields.io/npm/v/roamwright)](https://www.npmjs.com/package/roamwright)
 [![Compatibility tests](https://github.com/enestaylan/roamwright/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/enestaylan/roamwright/actions/workflows/test.yml)
 
-Roamwright is a modular Three.js engine for procedural worlds in the browser. Generate terrain from a seed, batch colored primitives into meshes, and move a camera through walkable or flyable spaces. A worker pool can prepare geometry while the renderer draws the current frame.
+Roamwright is a Three.js toolkit for building procedural worlds you can explore in the browser. Sample a landscape from a seed, assemble its scenery into meshes, and use the same terrain to guide a walking or flying camera. For larger worlds, a worker pool can build geometry off the main thread.
 
-![The island example at seed 42, with rocky grassland, sandy beaches and surrounding water](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/seeded-island.jpg)
+![A red passenger train on a stone viaduct above a winding alpine river, with conifers on the banks and snow on the peaks](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/alpine-viaduct.jpg)
+
+**Alpine viaduct, seed 42.** One height field shapes the riverbed and snowy ridges and determines where the conifers take root. Eight copies of an arch profile form the viaduct. Its stonework, rails and four passenger cars share one mesh. [Explore the example source](examples/viaduct.js).
 
 ## Install
 
@@ -15,7 +17,7 @@ npm install roamwright
 
 npm resolves the Three.js peer in a new project. If you already use Three.js, the supported versions are **0.170.0** and **0.187.0**. To select one explicitly, run `npm install roamwright three@0.187.0`. The renderer requires WebGL 2.
 
-## Run the island example
+## Run the examples
 
 With Node.js, npm and Python 3 installed, run the following commands.
 
@@ -26,7 +28,12 @@ npm ci
 npm run demo
 ```
 
-Open [the island at seed 42](http://localhost:8080/examples/?seed=42). Drag to orbit and scroll or pinch to zoom. Change the integer in `?seed=42` to generate another island, or share the seed to reproduce the same coastline and rock placement. The [example source](examples/island.js) shows how to generate the terrain, batch the rocks and redraw on camera movement or resize.
+| Example | What to look for |
+| --- | --- |
+| [Alpine viaduct](http://localhost:8080/examples/viaduct.html?seed=42) | Follow the river under the arches. Change the seed to see how the treeline, exposed rock and shoreline follow the terrain. [Source](examples/viaduct.js) |
+| [Seeded island](http://localhost:8080/examples/?seed=42) | Start with a smaller scene that uses noise to shape a coastline and a single mesh for its scattered rocks. [Source](examples/island.js) · [Render](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/seeded-island.jpg) |
+
+Drag to orbit and scroll or pinch to zoom. Both examples load Three.js from your local installation. Set the integer after `?seed=` to reproduce a landscape.
 
 ## Render your first mesh
 

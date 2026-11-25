@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpine viaduct · Roamwright</title>
+<style>
+  body { margin: 0; background: #bdd7dd; font: 15px/1.4 system-ui, sans-serif }
+  canvas { display: block; width: 100vw; height: 100dvh; touch-action: none }
+  header { position: absolute; left: 1rem; top: 1rem; padding: .6rem 1rem; background: #fffffff0; color: #213639; border-radius: .25rem; pointer-events: none }
+  h1 { margin: 0; font-size: 1.15rem } p { margin: .2rem 0 0 }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "../node_modules/three/build/three.module.js",
+    "three/addons/": "../node_modules/three/examples/jsm/",
+    "roamwright": "../index.js",
+    "roamwright/": "../"
+  }
+}
+</script>
+<header><h1>Alpine viaduct</h1><p>Drag to orbit · Scroll or pinch to zoom</p></header>
+<canvas aria-label="A red passenger train crosses a stone viaduct above a forested river valley"></canvas>
+<script type="module" src="./viaduct.js"></script>
+</html>

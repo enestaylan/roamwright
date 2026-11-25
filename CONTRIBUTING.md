@@ -17,9 +17,9 @@ npm run test:package
 | Command | What it checks |
 | --- | --- |
 | `npm test` | Seeded generation, geometry buffers, player motion and worker/runtime behavior. |
-| `npm run test:browser` | GPU batching and post-processing in a real Chromium WebGL context. Set `CHROMIUM_EXECUTABLE` to use an existing Chrome executable. |
+| `npm run test:browser` | GPU batching, post-processing, and both examples rendered with two seeds in Chromium. Set `CHROMIUM_EXECUTABLE` to use an existing Chrome executable. |
 | `npm run test:package` | Packs the working tree, installs the tarball and the selected Three.js revision into a temporary project, and builds geometry through public imports. |
-| `npm run demo` | Serves the [island example](http://localhost:8080/examples/) for interactive inspection. |
+| `npm run demo` | Serves the [alpine viaduct](http://localhost:8080/examples/viaduct.html?seed=42) and [seeded island](http://localhost:8080/examples/) for interactive inspection. |
 
 CI runs the first three checks with Three.js 0.170.0 and 0.187.0. To try the older peer locally, run `npm install --no-save --package-lock=false three@0.170.0` and repeat the checks. Run `npm ci` to restore the locked dependencies.
 
