@@ -63,3 +63,61 @@ test('terrain switches a chunk between coarse and fine geometry while preserving
   assert.equal(parts.reduce((sum,p)=>sum+p.count,0),fine.index.count);
   assert.ok(fine.boundingBox.min.y<0 && fine.boundingBox.max.y>8);
 });
+
+test('starting terrain at a known view builds each piece once and keeps later camera and held-region updates', () => {
+  const cells = 8, stride = cells * 3 + 1, points = stride * stride;
+  const land = {
+    cells, stride, spacing: 1, x0: 0, z0: 0, bedY: 2,
+    heights: Float32Array.from({ length: points }, (_, i) => (i % stride) * 0.25),
+    colors: new Uint8Array(points * 3).fill(130),
+    normalAt: (i, out) => { out[0] = 0; out[1] = 1; out[2] = 0; },
+    relief: () => 0.25, groundAt: () => 3,
+  };
+  const camera = { position: new Vector3() };
+  function build(initialPosition) {
+    const pieces = new Map();
+    const held = [{ box: [16, 16, 24, 24], range: 30, level: 1 }];
+    let additions = 0;
+    function createBatch(material) {
+      const batch = new Object3D();
+      batch.add = (geometry, start, count) => {
+        const id = ++additions;
+        pieces.set(id, { material, geometry, start, count });
+        return id;
+      };
+      batch.remove = id => pieces.delete(id);
+      return batch;
+    }
+    const update = terrainChunks(new Group(), land, ['ground', 'bed'], {
+      camera, createBatch, held, initialPosition, distances: [4, 8, 12], fineRange: 2,
+    });
+    function snapshot() {
+      return [...pieces.values()].map(({ material, geometry: g, start, count }) => ({
+        key: [g.boundingBox.min.x, g.boundingBox.min.z, material].join('/'),
+        attributes: Object.values(g.attributes).map(a => a.array),
+        index: g.index.array, start, count,
+      })).sort((a, b) => a.key.localeCompare(b.key));
+    }
+    return { update, held, pieces, snapshot, additions: () => additions };
+  }
+  for (const eye of [new Vector3(2, 4, 2), new Vector3(2, 400, 2)]) {
+    camera.position.set(-100, 700, -100);
+    const direct = build(eye), coarse = build();
+    camera.position.copy(eye);
+    coarse.update(true);
+    assert.deepEqual(direct.snapshot(), coarse.snapshot());
+    assert.equal(direct.held[0].fine, true);
+    assert.equal(direct.additions(), direct.pieces.size);
+    assert.ok(coarse.additions() > direct.additions());
+    direct.update(true);
+    assert.equal(direct.additions(), direct.pieces.size);
+
+    camera.position.set(20, 300, 20);
+    for (const terrain of [direct, coarse]) {
+      terrain.held.push({ box: [8, 8, 16, 16], range: 20, level: 0 });
+      terrain.update(true);
+      assert.ok(terrain.held[1].fine);
+    }
+    assert.deepEqual(direct.snapshot(), coarse.snapshot());
+  }
+});

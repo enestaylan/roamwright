@@ -235,6 +235,23 @@ test('cells show their near mesh near, their batched far copy far, and nothing p
   assert.equal(cells[1].mesh.count, 2, 'thinned past 45% of the distance');
 });
 
+test('cell detail can follow altitude while its visibility range stays horizontal', () => {
+  const geo = new THREE.BoxGeometry(), mat = new THREE.MeshStandardMaterial();
+  const cell = { mesh: new THREE.InstancedMesh(geo, mat, 1), lo: new THREE.InstancedMesh(geo, mat, 1), cx: 0, cy: 120, cz: 0, r: 10 };
+  cell.mesh.castShadow = true;
+  const lod = createCellLod(), cells = [cell];
+  const [far] = lod.batch(cells, new THREE.Group());
+  lod.update(cells, 0, 0, 200, 50, 1, 120);
+  assert.ok(cell.mesh.visible && !far.visible);
+  lod.update(cells, 0, 0, 200, 50, 1, 190);
+  assert.ok(!cell.mesh.visible && far.visible);
+  lod.update(cells, 0, 0, 200, 50, 1, 190, 2);
+  assert.ok(cell.mesh.visible && !far.visible);
+  lod.update(cells, 421, 0, 200, 50, 1, 120, 2);
+  assert.ok(!cell.mesh.visible && !far.visible);
+  assert.ok(far.customDepthMaterial && far.customDistanceMaterial);
+});
+
 test('stage lights cut at a jump and keep their strength on the subject; keys and narrow framing', () => {
   const fill = new THREE.SpotLight(),
     rim = new THREE.SpotLight(),

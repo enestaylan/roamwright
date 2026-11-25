@@ -191,7 +191,8 @@ function buildFineGeometry(land, ci, cj) {
   }
   return chunkGeometry(pos, nor, col, uv, m, bedY);
 }
-// Builds the ground at its coarsest and returns an updater that shows finer levels as the viewer approaches. `materials` is the pair
+// Builds the ground at its coarsest or, with initialPosition {x, y, z}, at the levels seen from that position.
+// The returned updater follows camera.position as the viewer moves. `materials` is the pair
 // every chunk is drawn with (ground, deep bed), or a function giving the pair (or the one material) for the chunk that covers
 // (x0, z0) to (x1, z1). `held`: [{ box: [x0, z0, x1, z1], range, level }], ground over which something finer is laid on the mesh
 // at a level of detail or finer, a list that may fill later: within `range` metres of its box
@@ -200,7 +201,7 @@ function buildFineGeometry(land, ci, cj) {
 // are one batch of geometry pieces: those in view are drawn together, and a
 // chunk's vertices are on the card only, at the one level it is shown at.
 export function terrainChunks(parent, land, materials, {
-  camera, createBatch, lodScale = () => 1, distances = [330, 680, 1250], held = [],
+  camera, createBatch, lodScale = () => 1, distances = [330, 680, 1250], held = [], initialPosition,
   fineRange = 70, fineHeight = 90, altitudeStart = 120, altitudeWeight = 0.6, checksPerFrame = 8,
 }) {
   const width = land.cells * land.spacing,
@@ -239,18 +240,18 @@ export function terrainChunks(parent, land, materials, {
           cz: land.z0 + (cj + 0.5) * width,
           materials: typeof materials === 'function' ? materials(x0, z0, x0 + width, z0 + width) : materials,
           pieces: [],
-          lod: 3,
+          lod: null,
           holds: null, // the ground held over this chunk (`held`), once seen
         };
-      show(chunk, chunk.lod);
+      if (!initialPosition) show(chunk, 3);
       chunks.push(chunk);
     }
   const boxOf = c => [c.cx - width / 2, c.cz - width / 2, c.cx + width / 2, c.cz + width / 2],
     overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3],
-    nearBox = (box, range) =>
+    nearBox = (box, range, position) =>
       Math.hypot(
-        Math.max(box[0] - camera.position.x, 0, camera.position.x - box[2]),
-        Math.max(box[1] - camera.position.z, 0, camera.position.z - box[3]),
+        Math.max(box[0] - position.x, 0, position.x - box[2]),
+        Math.max(box[1] - position.z, 0, position.z - box[3]),
       ) <
       range * lodScale();
   // the chunks under ground held at a level, found when it is first seen (the list may fill later)
@@ -260,9 +261,9 @@ export function terrainChunks(parent, land, materials, {
     for (const c of h.chunks) (c.holds ??= []).push(h);
   };
   // the level a chunk wants, `want` by its distance, or finer where ground over it is held within range
-  const heldLevel = (c, want) => {
+  const heldLevel = (c, want, position) => {
     if (c.holds)
-      for (let i = 0; i < c.holds.length; i++) if (nearBox(c.holds[i].box, c.holds[i].range)) want = Math.min(want, c.holds[i].level);
+      for (let i = 0; i < c.holds.length; i++) if (nearBox(c.holds[i].box, c.holds[i].range, position)) want = Math.min(want, c.holds[i].level);
     return want;
   };
   // whether every chunk under held ground stands at its level or finer
@@ -271,30 +272,33 @@ export function terrainChunks(parent, land, materials, {
     return true;
   };
   let chunkCursor = 0;
-  return force => {
+  const update = (force, position) => {
     for (let i = 0; i < held.length; i++) if (!held[i].chunks) holdUnder(held[i]);
     // Re-evaluate a few chunks per frame; put at most one at another level per frame. The fine level is drawn only near the eye.
-    const low = !!land.relief && camera.position.y < land.groundAt(camera.position.x, camera.position.z) + fineHeight;
+    const low = !!land.relief && position.y < land.groundAt(position.x, position.z) + fineHeight;
     let built = false;
     const count = force ? chunks.length : checksPerFrame;
     for (let n = 0; n < count; n++) {
       const c = chunks[chunkCursor];
       chunkCursor = (chunkCursor + 1) % chunks.length;
-      const dx = Math.max(Math.abs(camera.position.x - c.cx) - width * 0.5, 0),
-        dz = Math.max(Math.abs(camera.position.z - c.cz) - width * 0.5, 0);
-      const d = Math.hypot(dx, dz, Math.max(0, camera.position.y - altitudeStart) * altitudeWeight);
+      const dx = Math.max(Math.abs(position.x - c.cx) - width * 0.5, 0),
+        dz = Math.max(Math.abs(position.z - c.cz) - width * 0.5, 0);
+      const d = Math.hypot(dx, dz, Math.max(0, position.y - altitudeStart) * altitudeWeight);
       const fine = low && Math.hypot(dx, dz) < fineRange;
       const want = fine
         ? -1
         : heldLevel(
             c,
             d < distances[0] * lodScale() ? 0 : d < distances[1] * lodScale() ? 1 : d < distances[2] * lodScale() ? 2 : 3,
+            position,
           );
       if (want === c.lod || (built && !force)) continue;
       show(c, want);
       built = true;
     }
-    for (let i = 0; i < held.length; i++) held[i].fine = nearBox(held[i].box, held[i].range) && standsAt(held[i]);
+    for (let i = 0; i < held.length; i++) held[i].fine = nearBox(held[i].box, held[i].range, position) && standsAt(held[i]);
   };
+  if (initialPosition) update(true, initialPosition);
+  return force => update(force, camera.position);
 }
 

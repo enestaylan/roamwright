@@ -23,7 +23,7 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
     shown = { value: null }, // the table, as the uniform the far materials and the far shadow body share
     batches = [];
   let batchShows = null,
-    depth = null;
+    depth = null, distanceMaterial = null;
 
   // Hides, in the vertex shader, a copy whose cell is not showing its far copy or that lies past the cell's `count`.
   function hideUnshown(sh) {
@@ -117,6 +117,12 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
       mesh.castShadow = casts; // as the near copies do
       if (casts) {
         mesh.customDepthMaterial = depthMaterial();
+        if (!distanceMaterial) {
+          distanceMaterial = new THREE.MeshDistanceMaterial();
+          distanceMaterial.onBeforeCompile = hideUnshown;
+          distanceMaterial.customProgramCacheKey = () => 'far-batch-distance';
+        }
+        mesh.customDistanceMaterial = distanceMaterial;
         mesh.userData.partShown = true; // a pass drawing heights with a plain depth material would show every copy
       }
       mesh.matrixAutoUpdate = false;
@@ -131,14 +137,15 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
   // Where a cell lies and how far it is drawn, kept on it in a record of one shape: cells come from builders of many shapes,
   // and a number read from objects of so many shapes is made anew at every read. A cell does not move.
   const lodOf = t =>
-    (t.lod ??= { cx: t.cx, cz: t.cz, r: t.r, until: t.until ?? Infinity, near: t.near ?? Infinity, batch: t.farBatch ?? -1 });
+    (t.lod ??= { cx: t.cx, cy: t.cy ?? 0, cz: t.cz, r: t.r, until: t.until ?? Infinity, near: t.near ?? Infinity, batch: t.farBatch ?? -1 });
 
   /**
    * Each frame: near cells show their detailed mesh, far ones their batched copy, thinned beyond `thinFrom` of the drawing
    * distance. (cx, cz): the eye; `distance` metres past which nothing is drawn, `detail` metres within which the near mesh is,
-   * `density` the share of a thinned cell's instances kept.
+   * `density` the share of a thinned cell's instances kept. Optional eye height `cy` includes altitude above the cell's
+   * centre in the near/far decision. The visibility range stays horizontal. `rangeScale` scales both thresholds, including the radius.
    */
-  function update(cells, cx, cz, distance, detail, density) {
+  function update(cells, cx, cz, distance, detail, density, cy, rangeScale = 1) {
     let changed = false;
     if (batchShows) batchShows.fill(0);
     for (let i = 0; i < cells.length; i++) {
@@ -146,10 +153,12 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
         at = lodOf(t),
         dx = cx - at.cx,
         dz = cz - at.cz,
-        d = Math.sqrt(dx * dx + dz * dz) - at.r,
+        horizontalSq = dx * dx + dz * dz,
+        d = Math.sqrt(horizontalSq) / rangeScale - at.r,
         hasFar = t.lo || t.far !== undefined;
       const vis = d < Math.min(distance, at.until),
-        hi = !hasFar || d < Math.min(detail, at.near);
+        nearDistance = cy === undefined ? d : Math.sqrt(horizontalSq + (cy - at.cy) ** 2) / rangeScale - at.r,
+        hi = !hasFar || nearDistance < Math.min(detail, at.near);
       t.mesh.visible = vis && hi;
       if (t.lo) t.lo.visible = vis && !hi;
       let count = t.farN;
