@@ -44,6 +44,8 @@ export function createPostProcessing({
   referenceLogLuminance = 0,
   expectedLogLuminance = () => referenceLogLuminance,
   adaptationStrength = 0.35,
+  contactRadius = 0.25,
+  contactStrength = () => 0,
   maxExposureStops = 0.8,
   eyeAdaptation = createEyeAdaptation(),
   depthOfField = createDepthOfField(),
@@ -218,6 +220,7 @@ export function createPostProcessing({
         uPx: { value: new THREE.Vector2(0.001, 0.001) },
         uAspect: { value: 1 },
         uAO: { value: 1 },
+        uContact: { value: new THREE.Vector2(contactRadius, 0) },
       },
     });
     post.rayScene = fullScreen(post.rayMat);
@@ -254,6 +257,7 @@ export function createPostProcessing({
           a.uTan.value.copy(u.uTan.value);
           a.uAspect.value = u.uAspect.value;
           a.uAO.value = u.uAO.value;
+          a.uContact.value.y = contactStrength();
           rn.setRenderTarget(post.aoRT);
           rn.render(post.aoScene, post.aoCam);
         }

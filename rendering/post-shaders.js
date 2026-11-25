@@ -14,7 +14,7 @@ const RAY_FS = `/* glsl */ uniform sampler2D tMask; uniform vec2 uSun; uniform f
     gl_FragColor = vec4(acc / 30.0, 0.0, 0.0, 1.0); }`;
 
 // Ambient occlusion from the depth buffer alone: corners, eaves, doorways and the ground under things darken. Stored with the depth it was taken at.
-const AO_FS = `/* glsl */ uniform sampler2D tDepth; uniform vec2 uNF, uTan, uPx; uniform float uAspect, uAO; varying vec2 vUv;
+const AO_FS = `/* glsl */ uniform sampler2D tDepth; uniform vec2 uNF, uTan, uPx; uniform float uAspect, uAO; uniform vec2 uContact; varying vec2 vUv;
   vec3 vp(vec2 uv){ uv = (floor(uv / uPx) + 0.5) * uPx;      // every lookup is moved onto the centre of a depth texel, so the position and the depth it is built from always belong together (otherwise thin dark lines cross flat ground, worst on phones)
     float z = uNF.x * uNF.y / ((uNF.y - uNF.x) * texture2D(tDepth, uv).x - uNF.y); return vec3((uv * 2.0 - 1.0) * uTan * -z, z); }
   void main(){ vec2 uv = (floor(vUv / uPx) + 0.5) * uPx;      // a half-size pixel's centre is the corner of four depth texels: step onto one, or rounding picks a different one from row to row and draws lines
@@ -31,6 +31,26 @@ const AO_FS = `/* glsl */ uniform sampler2D tDepth; uniform vec2 uNF, uTan, uPx;
       }
       float reach = sr * dist * 2.0 * uTan.y;             // how far the samples really reach in the world once the screen's cap has bitten (metres)
       ao = mix(clamp(1.0 - uAO * occ * rad / 14.0 * 2.1, 0.0, 1.0), 1.0, max(smoothstep(120.0, 240.0, dist), 1.0 - smoothstep(0.04, 0.12, reach)));   // under a hand's breadth it would shade a nose's own curve: a face seen close was smeared dark beside the nose
+      // Four nearer samples resolve local contacts that can fall inside the first spiral tap.
+      // Skip subpixel contacts, and vary spacing by depth so the radius remains in world units.
+      if (uContact.y > 0.0 && dist > 1.5 && dist < 45.0) {
+        float r = uContact.x, screenRadius = min(r / (dist * 2.0 * uTan.y), 0.06);
+        float pixels = screenRadius / uPx.y;
+        if (pixels > 1.5) {
+          float contact = 0.0;
+          vec2 direction = vec2(0.923880, 0.382683);
+          for (int j = 0; j < 4; j++) {
+            vec2 dUV = direction * vec2(1.0 / uAspect, 1.0) * screenRadius;
+            direction = vec2(-direction.y, direction.x);
+            vec3 delta = vp(uv + dUV) - P;
+            float separation = length(delta);
+            float horizon = clamp((dot(N, delta) - r * 0.045) / max(separation, r * 0.12), 0.0, 1.0);
+            contact += horizon * (1.0 - smoothstep(r * 0.4, r * 2.0, separation));
+          }
+          float scale = smoothstep(1.5, 3.0, pixels) * smoothstep(1.5, 3.0, dist) * (1.0 - smoothstep(32.0, 45.0, dist));
+          ao *= 1.0 - clamp(uContact.y * 0.25 * contact * scale, 0.0, 0.55);
+        }
+      }
     }
     gl_FragColor = vec4(ao, dist, 0.0, 1.0); }`;
 
