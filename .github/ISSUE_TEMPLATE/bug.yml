@@ -1,0 +1,29 @@
+name: Bug report
+description: Report unexpected behavior in Roamwright or the island example.
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: What did you expect to see, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce
+      description: Include the smallest example you can share. For procedural worlds, include the seed and inputs.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Roamwright and Three.js versions
+      description: Use npm ls roamwright three, or give the commit if testing a checkout.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Runtime
+      description: For rendering issues, include the browser, OS and GPU. For Node.js, include the Node version.

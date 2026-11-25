@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>PieceBatch rendering test</title>
+<script type="importmap">
+  { "imports": { "three": "../node_modules/three/build/three.module.js" } }
+</script>
+<pre id="result">Running</pre>
+<script type="module">
+  import * as THREE from 'three';
+  import { createPieceBatch } from '../rendering/piece-batch.js';
+
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  const camera = new THREE.OrthographicCamera(-2, 2, 1, -1, 0.1, 10);
+  camera.position.z = 4;
+  const width = 96, height = 48;
+  renderer.setSize(width, height);
+  const target = new THREE.WebGLRenderTarget(width, height);
+  renderer.setRenderTarget(target);
+  const pixels = scene => {
+    renderer.render(scene, camera);
+    const buffer = new Uint8Array(width * height * 4);
+    renderer.readRenderTargetPixels(target, 0, 0, width, height, buffer);
+    return buffer;
+  };
+  let checks = 0;
+  function check(actual, expected, label) {
+    if (!expected.some((value, index) => index % 4 === 0 && value > 0)) throw new Error('Empty reference: ' + label);
+    const mismatch = actual.findIndex((value, index) => value !== expected[index]);
+    if (mismatch >= 0) throw new Error(label + ' differed at byte ' + mismatch);
+    checks++;
+  }
+  const gl = renderer.getContext();
+  const multiDraw = renderer.extensions.has('WEBGL_multi_draw');
+  const hasExtension = renderer.extensions.has.bind(renderer.extensions);
+  try {
+    for (const fallback of [false, true]) {
+      renderer.extensions.has = name => !(fallback && name === 'WEBGL_multi_draw') && hasExtension(name);
+      const Batch = createPieceBatch({ renderer, camera });
+      for (const indexed of [false, true]) {
+        const material = new THREE.MeshBasicMaterial({color: 0xfa4730});
+        const batch = new Batch(material, 65536);
+        const scene = new THREE.Scene(), reference = new THREE.Scene();
+        scene.add(batch);
+        const ids = [];
+        for (const x of [-1.2, 0, 1.2, 20]) {
+          const geometry = new THREE.PlaneGeometry(0.8, 0.8).translate(x, 0, 0);
+          const input = indexed ? geometry : geometry.toNonIndexed();
+          ids.push(batch.add(input));
+          reference.add(new THREE.Mesh(input, material));
+        }
+        const label = (indexed ? 'indexed' : 'arrays') + (fallback ? ' fallback' : ' default');
+        const image = pixels(scene);
+        const calls = renderer.info.render.calls;
+        if (calls !== (fallback || !multiDraw ? 3 : 2) || renderer.info.render.triangles !== 6)
+          throw new Error(label + ' counters: ' + calls + ' draws, ' + renderer.info.render.triangles + ' triangles');
+        check(image, pixels(reference), label);
+        batch.show(ids[1], false);
+        reference.children[1].visible = false;
+        check(pixels(scene), pixels(reference), label + ' hidden');
+        batch.remove(ids[1]);
+        if (!batch.pack()) throw new Error('Expected packing to reclaim unused capacity');
+        check(pixels(scene), pixels(reference), label + ' packed');
+        const moved = new Batch(material);
+        scene.add(moved);
+        batch.move(ids[2], moved);
+        check(pixels(scene), pixels(reference), label + ' moved');
+        batch.free();
+        moved.free();
+        reference.children.forEach(mesh => mesh.geometry.dispose());
+        material.dispose();
+      }
+    }
+    if (gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error');
+    result.textContent = 'PASS r' + THREE.REVISION + ', ' + checks + ' matching pixel buffers, multi-draw available: ' + multiDraw;
+  } catch (error) {
+    result.textContent = 'FAIL ' + error.stack;
+  } finally {
+    target.dispose();
+    renderer.dispose();
+  }
+</script>
