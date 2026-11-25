@@ -68,6 +68,9 @@ renderer.render(scene, camera);
 | `geometry/instances.js`, `rendering/piece-batch.js` | Draw repeated geometry with instancing or collect changing pieces into a GPU batch. |
 | `math/color.js` | Convert 8-bit sRGB channels with the `SRGB2LIN` lookup, scale linear RGB triples with `dim`, or apply the Three.js ACES fit to a color with `acesToColor(color, exposure)`. |
 | `runtime/grid-rows.js` | Split typed grids with `cutRows(grids, rows, start, end)` and reassemble independently completed bands with `pasteRows(grids, rows, start, bands)`. Each grid may have a different number of values per row. |
+| `motion/instance-sight.js` | Register upright instanced obstacles with `createInstanceSight().add(space, mesh, crownFraction, trunkRadius)` and query `obstructed(space, eye, target, angularMargin)`. |
+| `rendering/texture-fills.js` | Schedule RGBA texture fills with application-provided definitions, worker requests and a synchronous fallback. |
+| `rendering/glow-lines.js`, `rendering/glow-shell.js` | Draw constant-pixel outlines or softly lit shells from 3D line segments and a base-height callback. |
 | `rendering/contact-shadows.js` | Add a `ContactShadows({ capacity, opacity, lift })` mesh to a scene. Each frame call `begin()`, `add(x, receiverY, z, radius, intensity)` for each contact, then `end()`. All contacts share one draw. Call `dispose()` when finished. |
 | `motion/spaces.js`, `motion/player.js` | Give a space terrain height, decks and colliders. Set the controller's input axes, call `update(deltaSeconds)`, then `applyCamera(camera)`. Distances are in metres. |
 | `runtime/pool.js`, `runtime/worker.js` | Register named jobs on a module worker and send work from the page. Typed-array buffers in results transfer back to the caller. |
