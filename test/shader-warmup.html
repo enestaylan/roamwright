@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shader warmup</title>
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js"}}</script>
+<pre id="result">Running</pre>
+<script type="module">
+import * as THREE from 'three';
+import {createShaderWarmup} from '../rendering/shader-warmup.js';
+const result = document.querySelector('#result');
+try {
+  const renderer = new THREE.WebGLRenderer();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  camera.position.z = 4;
+  const scene = new THREE.Scene();
+  const geometry = new THREE.BoxGeometry();
+  const material = new THREE.MeshStandardMaterial();
+  const box = new THREE.Mesh(geometry, material);
+  box.castShadow = true;
+  scene.add(box, new THREE.Mesh(geometry, material));
+  const directional = new THREE.DirectionalLight();
+  const point = new THREE.PointLight();
+  directional.castShadow = point.castShadow = true;
+  renderer.shadowMap.enabled = true;
+  scene.add(directional, point);
+  const previous = new THREE.WebGLRenderTarget(3, 3);
+  renderer.setRenderTarget(previous);
+  const warm = createShaderWarmup({renderer, camera, scene, postMaterials: () => [[material, null]]});
+  const all = warm.compiled(scene);
+  if (!warm.compilingNow()) throw Error('compile should be pending');
+  await Promise.all([all, warm.compiledInTurn(box), warm.warmShadowPass(scene), warm.warmPostPasses()]);
+  if (renderer.getRenderTarget() !== previous || warm.compilingNow() || box.material !== material)
+    throw Error('temporary render state leaked');
+  const abandoned = new THREE.MeshBasicMaterial();
+  const removed = warm.compiled(new THREE.Mesh(geometry, abandoned), camera, scene);
+  abandoned.dispose();
+  await removed;
+  renderer.render(scene, camera);
+  if (!renderer.info.programs.length || renderer.getContext().getError()) throw Error('render after warmup failed');
+  warm.dispose();
+  renderer.dispose();
+  result.textContent = 'PASS parallel, serial, shadow and screen passes, disposed materials and state restoration';
+} catch (error) { result.textContent = 'FAIL ' + error.stack; }
+</script>
