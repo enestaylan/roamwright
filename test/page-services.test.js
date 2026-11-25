@@ -33,3 +33,26 @@ test('paused animation frames still yield and cancel unused callbacks', async t 
   await painted(1);
   assert.equal(cancelled, 2);
 });
+
+test('diagnostics preserve earlier visits and coalesce repeated warnings', async () => {
+  const { createDiagnosticLog } = await import('roamwright/runtime/diagnostic-log.js');
+  const data = new Map();
+  const page = {
+    localStorage: { getItem: key => data.get(key), setItem: (key, value) => data.set(key, value) },
+    performance: { now: () => 1000 }, location: { pathname: '/test', search: '' }, setTimeout: () => 1,
+  };
+  const options = { storageKey: 'test', page, capacity: 2 };
+  const first = createDiagnosticLog({ ...options, visit: 'first' });
+  first.setLogPlace(() => 'station');
+  first.noteLog('warn', 'slow');
+  first.noteLog('warn', 'slow');
+  first.save();
+  const second = createDiagnosticLog({ ...options, visit: 'second' });
+  second.noteLog('warn', 'slow');
+  assert.equal(second.readLog()[0].n, 2);
+  assert.equal(second.readLog()[0].ctx, 'station');
+  assert.equal(second.readLog().length, 2);
+  second.clearLog();
+  assert.deepEqual(first.readLog().map(entry => entry.visit), ['first']);
+  assert.deepEqual(createDiagnosticLog(options).readLog(), []);
+});
