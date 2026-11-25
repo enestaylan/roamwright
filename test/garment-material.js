@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { garmentTag, KIND } from 'roamwright/geometry/garment-tags.js';
+import { HAIR_LIE, HAIR_PARS, HAIR_SHEEN, HAIR_STRANDS, smoothOf } from 'roamwright/rendering/hair-strands.js';
 import { garmentShader } from 'roamwright/rendering/garment-material.js';
 
 export function run(canvas) {
@@ -10,18 +11,18 @@ export function run(canvas) {
   const scene = new THREE.Scene();
   const tex = new THREE.DataTexture(new Uint8Array([128, 165, 200, 255]), 1, 1);
   tex.needsUpdate = true;
-  const stages = garmentShader({ threads: 48, textureSize: 1 });
+  const stages = garmentShader({ threads: 48, textureSize: 1, smoothness: smoothOf('vSk') });
   const material = new THREE.MeshStandardMaterial({ roughness: 0.8 });
   const uniform = { value: garmentTag(0.8, KIND.linen) };
   material.onBeforeCompile = shader => {
     shader.uniforms.uTag = uniform;
     shader.uniforms.uFolds = shader.uniforms.uCrumple = { value: tex };
     shader.vertexShader = 'varying vec3 vL;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvL = position;');
-    shader.fragmentShader = 'uniform float uTag; varying vec3 vL;\n'+stages.declarations+'\n'+shader.fragmentShader
-      .replace('#include <color_fragment>', '#include <color_fragment>\nfloat vSk = uTag, gH = 0.5; vec4 tx = vec4(0.5);\n'+stages.color)
-      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\n'+stages.roughness)
+    shader.fragmentShader = 'uniform float uTag; varying vec3 vL;\n'+stages.declarations+HAIR_PARS+'\n'+shader.fragmentShader
+      .replace('#include <color_fragment>', '#include <color_fragment>\nfloat vSk = uTag + vL.x * 0.02, gH = 0.5; vec4 tx = vec4(0.5);\n'+stages.color+HAIR_STRANDS)
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\n'+stages.roughness+HAIR_SHEEN)
       .replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n'+stages.metalness)
-      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n'+stages.normal);
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n'+stages.normal+HAIR_LIE);
   };
   const geometry = new THREE.PlaneGeometry(0.18, 0.18);
   scene.add(new THREE.Mesh(geometry, material), new THREE.AmbientLight(0xffffff, 2));
@@ -38,7 +39,9 @@ export function run(canvas) {
     uniform.value = garmentTag(0.8, KIND.plate);
     const plate = sample();
     if (!(linen > plate && plate > 0)) throw Error('Surface tags produced unexpected tones: ' + [linen, plate]);
-    return 'Skin and garment stages compiled; linen and plate render in one draw';
+    uniform.value = 3.2;
+    if (sample() <= 0) throw Error('Strands did not render');
+    return 'Hair, skin and garment stages compiled; linen and plate render in one draw';
   } finally {
     geometry.dispose(); material.dispose(); tex.dispose(); target.dispose(); renderer.dispose();
   }
