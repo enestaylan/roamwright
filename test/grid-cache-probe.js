@@ -12,6 +12,18 @@ export async function run(canvas) {
   if (b.hasKept('slope') || await b.takeKept('slope',[dest])) throw Error('cache namespace');
   await b.keep('slope',[source]);
   if(await a.takeKept('slope',[dest]) || await b.takeKept('slope',[new Uint32Array(2)])) throw Error('stale grid or invalid type');
+  const first = createGridCache({...opts, revisions: {slope: 'v1', rocks: 'v1'}});
+  await first.keep('slope', [source]);
+  await first.keep('rocks', [source]);
+  const next = createGridCache({...opts, revisions: {slope: 'v2', rocks: 'v1'}});
+  if (next.hasKept('slope') || await next.takeKept('slope', [dest])) throw Error('changed input reused');
+  if (!next.hasKept('rocks') || !(await next.takeKept('rocks', [dest]))) throw Error('independent grid lost');
+  await next.keep('slope', [new Float32Array([4,5])]);
+  if (await first.takeKept('slope', [dest]) || await b.takeKept('slope', [dest])) throw Error('superseded record retained');
+  if (!(await next.takeKept('rocks', [dest])) || dest[0] !== 1.25) throw Error('other record overwritten');
+  if (!(await next.takeKept('slope', [dest])) || dest[0] !== 4) throw Error('new revision lost');
+  await next.keep('unknown', [source]);
+  if (next.hasKept('unknown') || await next.takeKept('unknown', [dest])) throw Error('unversioned grid stored');
   const events=createEvents(), other=createEvents(), log=[];
   events.on('tick',(a,b)=>log.push(a,b));events.on('tick',()=>log.push(3));other.emit('tick',0);events.emit('tick',1,2);
   if(log.join()!=='1,2,3')throw Error('event order');

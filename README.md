@@ -81,6 +81,8 @@ Import any module from `roamwright/<folder>/<name>.js`. Each area below names it
 | Player and world | `motion/spaces.js` and `motion/player.js` move a first-person controller over terrain, decks and colliders. | `motion/instance-sight.js`, `motion/daily-clock.js`, `runtime/spatial-audio.js` |
 | Runtime | `runtime/pool.js` and `runtime/worker.js` run named jobs on module workers. `runtime/quality-fit.js` adapts quality to measured GPU time. | `runtime/device-quality.js`, `runtime/quality-store.js`, `runtime/gpu-timing.js`, `runtime/first-use.js`, `runtime/hand-over.js`, `runtime/seen.js`, `runtime/frame-yield.js`, `runtime/grid-cache.js`, `runtime/grid-rows.js`, `runtime/events.js`, `runtime/diagnostic-log.js`, `runtime/module-preload.js`, `runtime/search.js` |
 
+Pass a `revisions` object mapping grid names to input-version strings to `createGridCache` to reuse compatible grids across builds. Saving a grid retires its previous revision. Names without a revision bypass storage. The existing `build` string versions the whole cache when `revisions` is omitted.
+
 For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page.
 
 ## Contributing and license
