@@ -100,6 +100,11 @@ renderer.render(scene, camera);
 | `rendering/post.js`, `rendering/taa.js`, `rendering/dof.js` | Compose HDR passes, temporal antialiasing, depth of field, exposure and upscaling. The application supplies its camera, effect scene and sky occlusion mask. |
 | `runtime/gpu-timing.js`, `runtime/quality-fit.js`, `runtime/quality-store.js` | Measure GPU work, adapt quality and persist a visitor's settings in a storage namespace chosen by the application. |
 
+| `motion/daily-clock.js` | Supply callbacks for the frame and hour to `createDailyClock()`. Check for time jumps and evaluate activity ramps and ranked time spans across midnight. |
+| `runtime/device-quality.js` | `createDeviceQuality()` chooses an initial quality level from graphics renderer, available memory, cores and pointing-device information. The hardware query is cached. |
+| `rendering/particles.js`, `math/particle-noise.js` | Create additive and alpha instanced particle pools using a shared noise texture. Supply an effect scene, a perspective point-scale uniform, elapsed seconds and a lazy noise texture factory. For soft intersections, pass the post pipeline’s scene-depth uniforms. Fill the returned `spawn` record, call `pSpawn(pool)` and flush each pool before drawing. |
+| `runtime/spatial-audio.js` | Synthesize loopable pink or brown noise, position a Web Audio panner, and set the listener pose from a Three.js camera matrix. |
+
 For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page. This path frees static CPU-side attributes after upload. Keep the seed or source data if your application needs to regenerate meshes after a context loss.
 
 ## Heads and garment surfaces
