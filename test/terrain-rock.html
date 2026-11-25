@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Terrain rock projection test</title>
+  <link rel="icon" href="data:,">
+  <script type="importmap">
+    {"imports":{"three":"../node_modules/three/build/three.module.js","three/addons/":"../node_modules/three/examples/jsm/","roamwright/":"../"}}
+  </script>
+</head>
+<body>
+  <canvas></canvas>
+  <pre id="result">Running…</pre>
+  <script type="module">
+    const output = document.querySelector('#result');
+    try {
+      const { run } = await import('./terrain-rock.js');
+      output.textContent = run(document.querySelector('canvas'));
+      output.dataset.result = 'pass';
+    } catch (error) {
+      output.textContent = error.stack ?? String(error);
+      output.dataset.result = 'fail';
+      console.error(error);
+    }
+  </script>
+</body>
+</html>

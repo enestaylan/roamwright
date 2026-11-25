@@ -1,5 +1,7 @@
 import { MeshStandardMaterial, MeshDepthMaterial, RGBADepthPacking, Color } from 'three';
 
+import { terrainReliefGLSL } from './terrain-rock.js';
+
 const CLIFF_FRAG_HEAD = `/* glsl */
 uniform vec3 uDark, uLight, uIron, uShale, uDust, uLichen, uCrust, uSnow;
 uniform sampler2D uRockTex; uniform float uSnowline;
@@ -26,8 +28,8 @@ const CLIFF_FRAG = `/* glsl */
     rock *= mix(vec3(1.0), clamp(vColor.rgb / gl, 0.7, 1.4), 0.35);                                          // the hue of the ground round it
     rock *= (0.68 + 0.64 * mix(0.5, f1.r, nearK)) * (0.78 + 0.44 * f2.r) * (0.82 + 0.36 * f3.r);
     rock *= 1.0 - 0.16 * f2.g * nearK - 0.16 * f1.g * nearK;                                                // cracks, seen from near
-    vec2 hz = normalize(vec2(-wn.z, wn.x) + 1e-4);
-    float streak = texture2D(uRockTex, vec2(dot(vWP.xz, hz) * 0.09, vWP.y * 0.006)).b;                      // rain runs down the faces
+    // Weathering follows the rock grain in fixed world space, including on a curving face.
+    float streak = mix(f3.b, f2.b, 0.35);
     float top = smoothstep(0.52, 0.86, wn.y);
     rock *= mix(0.8 + 0.4 * smoothstep(0.3, 0.7, streak), 1.0, smoothstep(0.25, 0.55, wn.y));
     rock *= 1.0 - 0.55 * cav;
@@ -48,16 +50,7 @@ const CLIFF_FRAG = `/* glsl */
   }`;
 const CLIFF_BUMP = `/* glsl */
 #include <normal_fragment_maps>
-  { float bs = 2.2 * (1.0 - smoothstep(40.0, 260.0, length(vViewPosition))) * smoothstep(0.06, 0.4, abs(dot(normal, normalize(vViewPosition))));   // and none on a face seen edge-on
-    if (bs > 0.01) {
-      vec3 sgx = dFdx(-vViewPosition), sgy = dFdy(-vViewPosition); float lx = length(sgx), ly = length(sgy);
-      if (lx > 1e-7 && ly > 1e-7) {
-        sgx /= lx; sgy /= ly; vec3 r1 = cross(sgy, normal), r2 = cross(normal, sgx); float det = dot(sgx, r1);
-        vec3 nb = abs(det) * normal - bs * sign(det) * (dFdx(gH) * r1 + dFdy(gH) * r2); float l2 = dot(nb, nb);
-        if (l2 > 1e-8) normal = nb * inversesqrt(l2);
-      }
-    }
-  }`;
+  normal = terrainReliefNormal(vViewPosition, normal, gH, 2.2, vec2(40.0, 260.0));`;
 // Positions and normals are expressed in the same terrain frame as the sample coordinates.
 const STATIC_VERTEX = `attribute vec4 aRock; attribute float aYY;
 vec3 cP, cN; float cHide;
@@ -81,7 +74,7 @@ export function createStrataMaterial({ texture, palette, snowline = 1e7, shading
       .replace('#include <begin_vertex>', 'vec3 transformed = cP; vWP = cP; vWN = cN; vRock = aRock; vYY = aYY;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nif (cHide > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\n' + shading + '\n' + CLIFF_FRAG_HEAD)
+      .replace('#include <common>', '#include <common>\n' + shading + '\n' + CLIFF_FRAG_HEAD + '\n' + terrainReliefGLSL)
       .replace('#include <color_fragment>', CLIFF_FRAG)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.62, gSnow);')
       .replace('#include <normal_fragment_maps>', CLIFF_BUMP);
