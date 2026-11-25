@@ -42,3 +42,19 @@ test('rock grain and cell identities repeat over the unit tile', () => {
     assert.deepEqual(c1, c2);
   }
 });
+
+test('joint families repeat across the tile, preserve the grain, and have a preferred strike', () => {
+  const fill = createRockTexture(15, { fractures: 'joints' }), cells = createRockTexture(15);
+  const a = new Uint8Array(3), b = new Uint8Array(3), c = new Uint8Array(3);
+  let across = 0, along = 0, open = 0;
+  for (let x = 0; x < 96; x++) for (let y = 0; y < 96; y++) {
+    const u = x / 96, v = y / 96;
+    fill(u, v, a); fill(u + 1, v - 1, b); assert.deepEqual(a, b);
+    cells(u, v, b); assert.equal(a[0], b[0]); assert.equal(a[2], b[2]);
+    fill(u + 1 / 96, v, b); fill(u, v + 1 / 96, c);
+    across += Math.abs(b[1] - a[1]); along += Math.abs(c[1] - a[1]);
+    open += a[1] > 50 ? 1 : 0;
+  }
+  assert.ok(across > 1.3 * along);
+  assert.ok(open > 460 && open < 2300);
+});
