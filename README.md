@@ -77,6 +77,8 @@ renderer.render(scene, camera);
 | `geometry/instances.js`, `rendering/piece-batch.js` | Draw repeated geometry with instancing or collect changing pieces into a GPU batch. |
 | `math/color.js` | Convert 8-bit sRGB channels with the `SRGB2LIN` lookup, scale linear RGB triples with `dim`, or apply the Three.js ACES fit to a color with `acesToColor(color, exposure)`. |
 | `runtime/grid-rows.js` | Split typed grids with `cutRows(grids, rows, start, end)` and reassemble independently completed bands with `pasteRows(grids, rows, start, bands)`. Each grid may have a different number of values per row. |
+| `motion/quadruped.js` | Supply joint positions, feet and gait profiles to `makeRig`. Call `stepRig` with a world transform and optional ground sampler. Set the optional initial phase to reproduce a gait. |
+| `geometry/sampled-surface.js`, `geometry/erosion.js` | Sample a parametric sheet into a geometry builder or erode a masked square heightfield using an injected random source and droplet parameters. |
 | `motion/instance-sight.js` | Register upright instanced obstacles with `createInstanceSight().add(space, mesh, crownFraction, trunkRadius)` and query `obstructed(space, eye, target, angularMargin)`. |
 | `rendering/texture-fills.js` | Schedule RGBA texture fills with application-provided definitions, worker requests and a synchronous fallback. |
 | `rendering/glow-lines.js`, `rendering/glow-shell.js` | Draw constant-pixel outlines or softly lit shells from 3D line segments and a base-height callback. |
