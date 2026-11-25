@@ -29,6 +29,22 @@ test('roof-constrained shafts keep their height and outdoor shafts rise above me
   assert.equal(roof.scale.y, 4);
 });
 
+test('shaft radii default to a wide foot and follow the foot and top options', () => {
+  const options = { camera: new PerspectiveCamera(), ground: () => 0, heightProbe: async () => 0, time: { value: 0 }, night: { value: 0 } };
+  const radii = shaft => {
+    const p = shaft.geometry.getAttribute('position');
+    let foot = 0, top = 0;
+    for (let i = 0; i < p.count; i++) {
+      const r = Math.hypot(p.getX(i), p.getZ(i));
+      if (p.getY(i) < 0.5) foot = Math.max(foot, r);
+      else top = Math.max(top, r);
+    }
+    return [+foot.toFixed(3), +top.toFixed(3)];
+  };
+  assert.deepEqual(radii(createLightShafts(options).lightShaft(new Color(0xffffff), 4)), [0.8, 0.35]);
+  assert.deepEqual(radii(createLightShafts({ ...options, footRadius: 0.2, topRadius: 0.6 }).lightShaft(new Color(0xffffff), 4)), [0.2, 0.6]);
+});
+
 test('point-light caster signature follows instance version, reach and parent transform', () => {
   const scene = new Scene();
   const parent = new Group();

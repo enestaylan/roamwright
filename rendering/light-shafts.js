@@ -6,8 +6,9 @@ export function createLightShafts({
   maxHeight: TALLEST = 95, probeDistance: MEASURE_NEAR = 450, growthRate: GROW = 1.6,
   rimDistances: RIM_REACH = [90, 160, 240, 320], rimClearance: RIM_OVER = 18,
   bearings: AROUND = 16, rimQuantile: ENCLOSED = 0.25, widenAt: WIDEN_FROM = 70,
+  footRadius: FOOT = 0.8, topRadius: TOP = 0.35, // metres: a foot narrower than the top reads as light falling on a spot
 }) {
-  const geometry = new THREE.CylinderGeometry(0.35, 0.8, 1, 14, 1, true).translate(0, 0.5, 0),
+  const geometry = new THREE.CylinderGeometry(TOP, FOOT, 1, 14, 1, true).translate(0, 0.5, 0),
     materials = new Map(); // one material for each colour, which every shaft of that colour shares
   const shafts = [], // every shaft whose height is still to be found or reached
     _from = new THREE.Vector3();
