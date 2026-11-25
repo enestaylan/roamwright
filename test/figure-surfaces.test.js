@@ -3,6 +3,8 @@ import test from 'node:test';
 import { Vector3 } from 'three';
 import { headFn } from 'roamwright/geometry/head-shape.js';
 import { faceAt, faceGrid, faceSculpt } from 'roamwright/geometry/face-grid.js';
+import { buildEar } from 'roamwright/geometry/ear.js';
+import { GeometryBuilder } from 'roamwright';
 import { KIND, garmentTag } from 'roamwright/geometry/garment-tags.js';
 import { createClothTextures } from 'roamwright/math/cloth-textures.js';
 
@@ -24,6 +26,24 @@ test('sampled face grids join sparse back rows and keep feature channels', () =>
   assert.ok(Math.abs(neutral.reach(point.x, point.y, point.z) - 1) < 1e-6);
   const [x, y, z, nx, ny, nz] = faceAt(neutral, 0.015, 0);
   assert.ok(x > 0 && Math.abs(y) < 0.01 && z > 0 && Math.abs(Math.hypot(nx,ny,nz) - 1) < 1e-6);
+});
+
+test('both ears return into the sampled skull on different heads', () => {
+  const center = 1.6;
+  for (const head of [headFn(), headFn({ jaw: 1, cheek: 1.8, chinW: 1.35 })]) {
+    for (const side of [-1, 1]) {
+      const ear = new GeometryBuilder();
+      buildEar(ear, head, side, center, [0.4, 0.25, 0.18], 1);
+      const { position, normal } = ear.parts();
+      const rear = position.slice(-28 * 9);
+      assert.equal(position.length / 9, 182);
+      assert.ok(normal.every(Number.isFinite));
+      for (let i = 0; i < rear.length; i += 9) {
+        const reaches = [0, 3, 6].map(j => head.reach(rear[i + j], rear[i + j + 1] - center, rear[i + j + 2]));
+        assert.ok(reaches.some(reach => reach < 0.92), 'Each return triangle touches the buried attachment');
+      }
+    }
+  }
 });
 
 test('seeded garment fields supply weave, fold slopes and crease slopes', () => {
