@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shadow passes</title>
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js"}}</script>
+<pre id="result">Running</pre>
+<script type="module">
+import * as T from 'three';
+import {createStaticPointShadow} from '../rendering/static-point-shadow.js';
+import {installShadowDepth} from '../rendering/shadow-depth.js';
+import {markStill} from '../rendering/still-casters.js';
+import {createFarShadow,installFarShadowShader} from '../rendering/far-shadow.js';
+import {installLocalLightCulling} from '../rendering/local-lights.js';
+import {createSkyOcclusion,createSkyOcclusionShader} from '../rendering/sky-occlusion.js';
+import {createShaderWarmup} from '../rendering/shader-warmup.js';
+const result=document.querySelector('#result');
+try {
+  const check = (condition, reason) => { if (!condition) throw Error(reason); };
+  installLocalLightCulling();
+  installFarShadowShader({nearDepth:49,farDepth:99});
+  const renderer = new T.WebGLRenderer();
+  renderer.setSize(96,96);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFShadowMap;
+  renderer.info.autoReset = false;
+  const scene = new T.Scene(), camera = new T.PerspectiveCamera(55,1,.1,100);
+  camera.position.set(4,3,7);
+  camera.lookAt(0,.4,0);
+  const shader=createSkyOcclusionShader({minimum:.5,underCover:.4});
+  const surface = new T.MeshStandardMaterial({color:0xbbbbbb});
+  surface.onBeforeCompile = shaderData => shader.patch(shaderData);
+  surface.customProgramCacheKey = () => 'test-sky-occlusion';
+  const geometry = new T.BoxGeometry();
+  const floor=new T.Mesh(geometry,surface);
+  floor.scale.set(13,.1,13); floor.position.y=-.05; floor.receiveShadow=true;
+  const block=new T.Mesh(geometry,surface);
+  block.position.set(-.5,.8,0); block.scale.set(1.3,1.6,1);
+  block.castShadow=block.receiveShadow=true;
+  markStill(block);
+  const moving=new T.Mesh(geometry,surface);
+  moving.position.set(1.75,.5,.5); moving.castShadow=true;
+  const instances = new T.InstancedMesh(geometry,surface,1);
+  instances.setMatrixAt(0,new T.Matrix4().makeTranslation(80,0,0));
+  instances.castShadow=true;
+  const point=new T.PointLight(0xffffff,30,0,2);
+  point.position.set(-2,3,2); point.castShadow=true;
+  point.shadow.camera.near=.1; point.shadow.camera.far=20; point.shadow.mapSize.set(64,64);
+  scene.add(floor,block,moving,instances,point);
+  scene.add(new T.HemisphereLight(0xffffff,0x777777,.3));
+  const target = new T.WebGLRenderTarget(96,96);
+  function pixels() {
+    renderer.info.reset();
+    renderer.setRenderTarget(target);
+    renderer.render(scene,camera);
+    const image = new Uint8Array(96*96*4);
+    renderer.readRenderTargetPixels(target,0,0,96,96,image);
+    return image;
+  }
+  pixels();
+  const original=pixels(), calls=renderer.info.render.calls;
+  check(original.some((v,i)=>i%4!==3 && v>30),'empty scene');
+  const hooks=installShadowDepth(renderer);
+  const cache=createStaticPointShadow(renderer);
+  cache.keep(point);
+  pixels();
+  const image=pixels();
+  const changes = original.reduce((n,v,i)=>n+(v!==image[i]),0);
+  const largest = original.reduce((n,v,i)=>Math.max(n,Math.abs(v-image[i])),0);
+  check(!changes,'cache differs from full shadow in '+changes+' channels, max '+largest+', GL '+renderer.getContext().getError());
+  const pointCalls=renderer.info.render.calls;
+  check(pointCalls < calls,'static caster still drawn');
+  const noShadow=pixels();
+  moving.position.x-=1;
+  const moved=pixels();
+  check(moved.some((v,i)=>v!==noShadow[i]),'moving caster did not change the image');
+  cache.dispose();
+  const reference=pixels();
+  check(moved.every((v,i)=>v===reference[i]),'moving caster differs from full shadow');
+  hooks.dispose(scene);
+  floor.castShadow=true;
+  const sun=new T.DirectionalLight(0xffffff,1); sun.castShadow=true;
+  const direction=new T.Vector3(3,5,3).normalize();
+  sun.position.copy(direction).multiplyScalar(8); sun.shadow.mapSize.set(32,32);
+  scene.add(sun);
+  const far=createFarShadow({scene,camera,direction,ground:()=>0,mapSize:32,config:{
+    range:12,lead:.25,step:2,turn:.999,every:4,lift:50,back:50,above:3,bias:.1,normalBias:.25
+  }});
+  far.update(.1);
+  pixels();
+  check(far.light.shadow.map && !far.light.shadow.needsUpdate,'far map not drawn');
+  const warmup=createShaderWarmup({renderer,scene,camera});
+  const sky=createSkyOcclusion({renderer,scene,camera,uniforms:shader.uniforms,
+    config:{half:16,size:96,step:1,every:1,above:20,depth:40},samples:[.5,1,3,6],
+    ground:()=>0,strength:()=>1,warmup});
+  await sky.warm(scene);
+  sky.update(.1);
+  check(renderer.getRenderTarget()===target && shader.uniforms.uSkyR.value.z===1/32,'sky state or range');
+  const lit=pixels();
+  shader.uniforms.uSkyOn.value=0;
+  check(pixels().some((v,i)=>v!==lit[i]),'sky map did not affect indirect light');
+  sky.dispose(); warmup.dispose(); far.dispose();
+  check(!renderer.getContext().getError(),'WebGL error');
+  renderer.dispose();
+  result.textContent='PASS cached shadow pixels, moving casters, reduced draws, far map and sky irradiance ('+calls+' → '+pointCalls+' draws)';
+} catch(error) {result.textContent='FAIL '+error.stack;}
+</script>

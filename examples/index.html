@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seeded island · Roamwright</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; background: #bad2d9; color: #203e42; font: 15px/1.4 system-ui, sans-serif }
+  canvas { display: block; width: 100vw; height: 100dvh; touch-action: none }
+  header { position: absolute; left: 1.25rem; top: 1rem; pointer-events: none }
+  h1 { margin: 0; font-size: 1.25rem } p { margin: .2rem 0 }
+</style>
+<script type="importmap">
+{"imports":{"three":"../node_modules/three/build/three.module.js","three/addons/":"../node_modules/three/examples/jsm/","roamwright":"../index.js"}}
+</script>
+<header><h1>Seeded island</h1><p>Drag to orbit · Scroll or pinch to zoom</p></header>
+<canvas aria-label="Procedural island surrounded by water"></canvas>
+<script type="module" src="./island.js"></script>
+</html>

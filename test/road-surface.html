@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><title>Roamwright road surface test</title>
+<script type="importmap">
+{"imports":{"three":"../node_modules/three/build/three.module.js","roamwright/":"../"}}
+</script>
+<canvas id="view"></canvas>
+<output id="result">Testing…</output>
+<script type="module">
+import { run } from './road-surface.js';
+const result = document.querySelector('#result');
+try { result.textContent = run(document.querySelector('#view')); }
+catch (error) { result.textContent = 'FAIL ' + error.message; throw error; }
+</script></html>

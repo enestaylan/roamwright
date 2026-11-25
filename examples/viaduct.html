@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#152c2c">
+  <title>Alpine viaduct · Roamwright</title>
+  <link rel="stylesheet" href="./viaduct.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../node_modules/three/build/three.module.js",
+      "three/addons/": "../node_modules/three/examples/jsm/",
+      "roamwright": "../index.js",
+      "roamwright/": "../"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas tabindex="0" aria-label="Alpine railway in a forested river valley" aria-describedby="gestures keyboard-help"></canvas>
+  <header>
+    <a class="back" href="../index.html" aria-label="Back to Roamwright examples"><span aria-hidden="true">←</span> Roamwright</a>
+    <form method="get">
+      <label for="seed">Seed</label>
+      <input id="seed" name="seed" type="number" step="1" min="-2147483648" max="2147483647" value="42" required>
+      <button type="submit" title="Explore this seed" aria-label="Explore this seed">→</button>
+    </form>
+  </header>
+  <footer>
+    <div class="caption">
+      <h1>Alpine viaduct</h1>
+      <p id="gestures">Drag to orbit · Scroll or pinch to zoom</p>
+    </div>
+    <span id="keyboard-help" class="sr-only">With the scene focused, use the arrow keys to orbit and plus or minus to zoom.</span>
+    <div class="tools">
+      <div class="views" role="group" aria-label="Camera viewpoint">
+        <button type="button" data-view="valley" aria-pressed="true">Valley</button>
+        <button type="button" data-view="trackside" aria-pressed="false">Trackside</button>
+        <button type="button" data-view="riverbank" aria-pressed="false">Riverbank</button>
+      </div>
+      <button type="button" id="train"><span aria-hidden="true">▶</span> <span id="train-label">Run train</span></button>
+    </div>
+  </footer>
+  <script type="module" src="./viaduct.js"></script>
+</body>
+</html>

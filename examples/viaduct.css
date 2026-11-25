@@ -1,0 +1,75 @@
+:root {
+  color-scheme: dark;
+  font: 15px/1.4 "Avenir Next", "Segoe UI", sans-serif;
+  color: #fff6df;
+  background: #294347;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%) }
+* { box-sizing: border-box }
+body { margin: 0 }
+canvas { display: block; width: 100%; height: 100vh; height: 100dvh; touch-action: none }
+header, footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(14px, 2.4vw, 36px);
+  pointer-events: none;
+}
+header { top: 0; gap: 1rem; background: linear-gradient(#16302f48, transparent) }
+footer {
+  bottom: 0;
+  align-items: flex-end;
+  gap: 1rem;
+  padding-top: 5rem;
+  background: linear-gradient(transparent, #112a2bb5);
+}
+a, button, input { font: inherit; color: inherit }
+button { cursor: pointer }
+a:focus-visible, button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 3px solid #ffd577; outline-offset: 2px }
+.back, form, .views, #train {
+  pointer-events: auto;
+  border: 1px solid #f7edcf65;
+  border-radius: .45rem;
+  background: #132e2eef;
+}
+.back { padding: .65rem .95rem; font-weight: 600; text-decoration: none }
+.back span { margin-right: .3rem }
+form, .views, .tools, #train { display: flex; align-items: center }
+form { padding-left: .85rem }
+form label { color: #d9ddc9; font-size: .84rem }
+input {
+  background: transparent;
+  border: 0;
+  width: 7ch;
+  padding: .5rem .25rem;
+  text-align: center;
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+input:focus { width: 13ch }
+input::-webkit-inner-spin-button { -webkit-appearance: none }
+button { min-height: 44px; border: 0; background: transparent; font-weight: 550 }
+form button { width: 44px; border-left: 1px solid #f7edcf38 }
+h1 { margin: 0; font: 500 clamp(2.35rem, 5.3vw, 5.5rem)/1 "Iowan Old Style", "Palatino Linotype", Georgia, serif; letter-spacing: -.045em }
+p { margin: .5rem 0 0; font-size: .9rem }
+.tools { gap: .5rem }
+.views { padding: 3px }
+.views button { border-radius: .28rem; padding: .45rem .8rem }
+.views button[aria-pressed="true"] { background: #f4e8cb; color: #243b36 }
+#train { gap: .55rem; justify-content: center; min-width: 8.2rem; padding: .55rem .85rem; min-height: 52px }
+#train span:first-child { color: #ffcd7a }
+button:hover, .back:hover { background-color: #49625b }
+@media (max-width: 780px) {
+  footer { align-items: flex-start; flex-direction: column; padding-top: 2.5rem }
+  .tools { max-width: 100%; flex-wrap: wrap }
+  .views button { padding-inline: .62rem }
+  #train { min-width: 7.1rem }
+}
+@media (max-height: 480px) {
+  footer { flex-direction: row; align-items: flex-end; padding-top: 1rem }
+  h1 { font-size: 1.9rem }
+  .caption p { display: none }
+}

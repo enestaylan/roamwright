@@ -1,0 +1,54 @@
+{
+  "name": "roamwright",
+  "version": "0.2.0",
+  "description": "A Three.js library for building procedural worlds you can explore on foot or in flight. Generate terrain from a seed and batch scenery into meshes in the browser.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Enes TAYLAN",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enestaylan/roamwright.git"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./geometry/*.js": "./geometry/*.js",
+    "./math/*.js": "./math/*.js",
+    "./motion/*.js": "./motion/*.js",
+    "./rendering/*.js": "./rendering/*.js",
+    "./runtime/*.js": "./runtime/*.js"
+  },
+  "files": [
+    "index.js",
+    "geometry",
+    "math",
+    "motion",
+    "rendering",
+    "runtime",
+    "examples",
+    "scripts/serve.py",
+    "licenses",
+    "LICENSE",
+    "README.md",
+    "CONTRIBUTING.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "demo": "python3 scripts/serve.py",
+    "test:browser": "node test/browser.mjs",
+    "test:package": "node test/package.mjs"
+  },
+  "peerDependencies": {
+    "three": "0.170.0 || 0.187.0"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1",
+    "three": "0.187.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/enestaylan/roamwright",
+  "bugs": {
+    "url": "https://github.com/enestaylan/roamwright/issues"
+  }
+}
