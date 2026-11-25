@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/roamwright)](https://www.npmjs.com/package/roamwright)
 [![Compatibility tests](https://github.com/enestaylan/roamwright/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/enestaylan/roamwright/actions/workflows/test.yml)
 
-Roamwright is a Three.js toolkit for building procedural worlds you can explore in the browser. Sample a landscape from a seed, assemble its scenery into meshes, and use the same terrain to guide a walking or flying camera. For larger worlds, a worker pool can build geometry off the main thread.
+Roamwright is a Three.js library for building procedural worlds you can explore on foot or in flight. Generate terrain from a seed, batch scenery into meshes, and use the same terrain to guide movement through the world in your browser. For larger worlds, a worker pool can build geometry off the main thread.
 
 ![A red passenger train on a stone viaduct above a winding alpine river, with conifers on the banks and snow on the peaks](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/alpine-viaduct.jpg)
 
