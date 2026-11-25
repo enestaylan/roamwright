@@ -109,6 +109,8 @@ renderer.render(scene, camera);
 | `runtime/spatial-audio.js` | Synthesize loopable pink or brown noise, position a Web Audio panner, and set the listener pose from a Three.js camera matrix. |
 | `rendering/material-lod.js` | Create screen-door fades using an opacity uniform, camera distance or an instance’s `aNear` attribute. Near and far variants share complementary coverage. Use `handOverShadow()` to skip instances hidden by their LOD and `twinMaterial(base, kind)` to cache clones for different mesh classes. |
 | `rendering/shadow-alignment.js` | Snap a shadow camera’s world-space target to texel boundaries or fit a square orthographic shadow frustum. `createShadowSnap()` retains its scratch vectors and supports unequal texel dimensions. |
+| `rendering/light-shafts.js` | Create emissive wayfinding pillars, with fixed height under a roof or a height based on surrounding terrain and an asynchronous height probe outdoors. Supply shared time and night uniforms. |
+| `rendering/caster-motion.js` | Create a cached signature of nearby skinned and instanced caster motion for a point-shadow refresh policy. Supply the scene and elapsed seconds. The signature is `-1` where a skinned caster may animate. |
 
 For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page. This path frees static CPU-side attributes after upload. Keep the seed or source data if your application needs to regenerate meshes after a context loss.
 
