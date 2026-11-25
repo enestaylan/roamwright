@@ -33,7 +33,20 @@ export function run(canvas) {
     if (red()) throw Error('near light outside its range');
     camera.position.z = 25;
     if (red()) throw Error('distant light outside its range');
-    return 'PASS visible sources, batch count, depth rejection, intensity and distance fades';
+    camera.position.z = 0;
+    const halo = createLightPoints({ positions: new Float32Array([0, 0, -10]), color: new THREE.Color(0.15, 0.1, 0.05),
+      intensity, pointScale: { value: 70 }, emitterDiameter: 0, haloDiameter: 2 });
+    try {
+      lights.material.uniforms.uColor.value.setRGB(0.15, 0.1, 0.05);
+      const core = red();
+      lights.visible = false;
+      scene.add(halo);
+      const center = red();
+      if (!(center > 0 && center < core)) throw Error('halo-only profile');
+    } finally {
+      halo.geometry.dispose(); halo.material.dispose();
+    }
+    return 'PASS visible sources, batch count, depth rejection, intensity, distance fades and halo-only profile';
   } finally {
     lights.geometry.dispose(); lights.material.dispose(); blocker.geometry.dispose(); blocker.material.dispose();
     target.dispose(); renderer.dispose();

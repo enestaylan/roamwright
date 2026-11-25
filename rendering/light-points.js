@@ -18,7 +18,7 @@ export function createLightPoints({
       ...(fadeIn && { uFadeIn: { value: new THREE.Vector2(...fadeIn) } }),
       ...(fadeOut && { uFadeOut: { value: new THREE.Vector2(...fadeOut) } }),
     },
-    vertexShader: `uniform float uIntensity, uTime, uScale;
+    vertexShader: `/* glsl */ uniform float uIntensity, uTime, uScale;
       ${seeds ? 'attribute float aSeed;' : ''}
       ${fadeIn ? 'uniform vec2 uFadeIn;' : ''}
       ${fadeOut ? 'uniform vec2 uFadeOut;' : ''}
@@ -36,12 +36,12 @@ export function createLightPoints({
         ${fadeIn ? 'vStrength *= smoothstep(uFadeIn.x, uFadeIn.y, length(mv.xyz));' : ''}
         ${fadeOut ? 'vStrength *= 1.0 - smoothstep(uFadeOut.x, uFadeOut.y, length(mv.xyz));' : ''}
       }`,
-    fragmentShader: `uniform vec3 uColor;
+    fragmentShader: `/* glsl */ uniform vec3 uColor;
       varying float vStrength, vCore, vRadius;
       void main() {
         float r = length(gl_PointCoord - 0.5) * 2.0;
         float halo = exp(-r*r*14.0)*0.62 + exp(-r*r*3.2)*0.16;
-        float core = exp(-pow(r/vRadius, 2.0)*2.0)*5.0*vCore;
+        float core = ${emitterDiameter > 0 ? 'exp(-pow(r/vRadius, 2.0)*2.0)*5.0*vCore' : '0.0'};
         gl_FragColor = vec4((uColor*halo + mix(uColor, vec3(1.0), 0.45)*core) * vStrength * (1.0 - smoothstep(0.85, 1.0, r)), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
