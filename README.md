@@ -17,7 +17,14 @@ npm install roamwright
 
 npm resolves the Three.js peer in a new project. If you already use Three.js, the supported versions are **0.170.0** and **0.187.0**. To select one explicitly, run `npm install roamwright three@0.187.0`. The renderer requires WebGL 2.
 
-## Run the examples
+## Examples
+
+| Live example | What the example shows | Source |
+| --- | --- | --- |
+| [Alpine viaduct](https://enestaylan.github.io/roamwright/examples/viaduct.html?seed=42) | A shared height field shapes the riverbed and sets the treeline. The stone arches, rails and train share one mesh. | [viaduct.js](examples/viaduct.js) |
+| [Seeded island](https://enestaylan.github.io/roamwright/examples/?seed=42) | Seeded noise shapes the coastline, and a single mesh holds the rocks scattered along the shore. | [island.js](examples/island.js) |
+
+### Run locally
 
 With Node.js, npm and Python 3 installed, run the following commands.
 
@@ -28,12 +35,7 @@ npm ci
 npm run demo
 ```
 
-| Example | What to look for |
-| --- | --- |
-| [Alpine viaduct](http://localhost:8080/examples/viaduct.html?seed=42) | Follow the river under the arches. Change the seed to see how the treeline, exposed rock and shoreline follow the terrain. [Source](examples/viaduct.js) |
-| [Seeded island](http://localhost:8080/examples/?seed=42) | Start with a smaller scene that uses noise to shape a coastline and a single mesh for its scattered rocks. [Source](examples/island.js) · [Render](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/seeded-island.jpg) |
-
-Drag to orbit and scroll or pinch to zoom. Both examples load Three.js from your local installation. Set the integer after `?seed=` to reproduce a landscape.
+Open the address printed in the terminal for the example you want to explore. Drag to orbit and scroll or pinch to zoom. Change the integer after `?seed=` to generate a different landscape.
 
 ## Render your first mesh
 

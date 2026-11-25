@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roamwright examples</title>
+  <meta name="description" content="Explore two seeded Three.js worlds built with Roamwright.">
+  <style>
+    :root { color-scheme: light; font: 100%/1.5 system-ui, sans-serif; color: #183633; background: #f7f8f4 }
+    body { max-width: 68rem; margin: auto; padding: clamp(1.25rem, 5vw, 4rem) }
+    nav { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #c7d2c9; padding-bottom: 1rem }
+    a { color: inherit; text-underline-offset: .2em }
+    a:focus-visible { outline: 3px solid #136b65; outline-offset: 4px }
+    h1 { font: 500 clamp(2.3rem, 6vw, 4.5rem)/1.1 Georgia, serif; margin: .85em 0 .35em }
+    main > p { margin: 0 0 2rem; max-width: 54ch }
+    ul { list-style: none; padding: 0; display: grid; grid-template-columns: 3fr 2fr; gap: 1.5rem }
+    li a { display: block; font-weight: 650 }
+    img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: .75rem; border-radius: .3rem }
+    li p { margin: .4rem 0; color: #46615c }
+    @media (max-width: 42rem) { ul { grid-template-columns: 1fr } }
+  </style>
+</head>
+<body>
+  <nav aria-label="Project"><strong>Roamwright</strong><a href="https://github.com/enestaylan/roamwright">GitHub repository</a></nav>
+  <main>
+    <h1>Explore the examples</h1>
+    <p>Two procedural worlds built with Roamwright. Drag to orbit, scroll or pinch to zoom, and change the seed in the URL to explore a different landscape.</p>
+    <ul>
+      <li>
+        <a href="examples/viaduct.html?seed=42"><img src="docs/alpine-viaduct.jpg" alt="A red train crossing a stone viaduct in a forested valley">Alpine viaduct</a>
+        <p>Follow the river under eight stone arches and up to the snowline.</p>
+      </li>
+      <li>
+        <a href="examples/?seed=42"><img src="docs/seeded-island.jpg" alt="A rocky green island surrounded by turquoise water">Seeded island</a>
+        <p>Trace a coastline shaped by noise and dotted with weathered rocks.</p>
+      </li>
+    </ul>
+  </main>
+</body>
+</html>
