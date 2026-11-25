@@ -47,12 +47,28 @@ try {
     for (const seed of [42, 81]) {
       await page.goto(base + '/examples/' + example + '?seed=' + seed);
       await page.waitForFunction(() => document.querySelector('canvas')?.width === innerWidth);
-      captures.push(await page.locator('canvas').screenshot());
+      captures.push(await page.locator('canvas').screenshot({ style: 'header, footer { visibility: hidden }' }));
       assert.deepEqual(errors, []);
     }
     assert.ok(!captures[0].equals(captures[1]), example + ' should render different seeds');
     console.log(example, 'rendered both seeds');
   }
+  const canvas = page.locator('canvas');
+  const capture = () => canvas.screenshot({ style: 'header, footer { visibility: hidden }' });
+  const valley = await capture();
+  await page.getByRole('button', { name: 'Trackside' }).click();
+  const trackside = await capture();
+  assert.ok(!trackside.equals(valley), 'Trackside should move the camera');
+  await page.getByRole('button', { name: 'Run train' }).click();
+  // Wait for a visible change rather than assuming a particular animation frame rate.
+  let moving = await capture();
+  for (let attempt = 0; attempt < 5 && moving.equals(trackside); attempt++) moving = await capture();
+  assert.ok(!moving.equals(trackside), 'Train should move relative to the bridge');
+  await page.getByRole('button', { name: 'Pause train' }).click();
+  const paused = await capture();
+  assert.ok((await capture()).equals(paused), 'Pausing should stop the train');
+  assert.deepEqual(errors, []);
+
 } finally {
   await browser?.close();
   site.kill();

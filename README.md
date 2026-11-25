@@ -7,7 +7,7 @@ Roamwright is a Three.js library for building procedural worlds you can explore 
 
 ![A red passenger train on a stone viaduct above a winding alpine river, with conifers on the banks and snow on the peaks](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/alpine-viaduct.jpg)
 
-**Alpine viaduct, seed 42.** One height field shapes the riverbed and snowy ridges and determines where the conifers take root. Eight copies of an arch profile form the viaduct. Its stonework, rails and four passenger cars share one mesh. [Explore the example source](examples/viaduct.js).
+**Alpine viaduct, seed 42.** One height field shapes the riverbed and snowy ridges and determines where the conifers take root. Eight copies of an arch profile form the viaduct. The stonework, rails and overhead wires share one mesh. The four-car electric train moves as a separate mesh. Choose Valley, Trackside or Riverbank and select **Run train** to watch it cross. [Explore the example source](examples/viaduct.js).
 
 ## Install
 
@@ -25,7 +25,7 @@ npm resolves the Three.js peer in a new project. If you already use Three.js, th
 
 | Live example | What the example shows | Source |
 | --- | --- | --- |
-| [Alpine viaduct](https://enestaylan.github.io/roamwright/examples/viaduct.html?seed=42) | A shared height field shapes the riverbed and sets the treeline. The stone arches, rails and train share one mesh. | [viaduct.js](examples/viaduct.js) |
+| [Alpine viaduct](https://enestaylan.github.io/roamwright/examples/viaduct.html?seed=42) | Watch an electric train cross eight stone arches from the valley, trackside or riverbank. Change the seed to generate another landscape. | [viaduct.js](examples/viaduct.js) |
 | [Seeded island](https://enestaylan.github.io/roamwright/examples/?seed=42) | Seeded noise shapes the coastline, and a single mesh holds the rocks scattered along the shore. | [island.js](examples/island.js) |
 
 ### Run locally
