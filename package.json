@@ -1,6 +1,6 @@
 {
   "name": "roamwright",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A Three.js library for building procedural worlds you can explore on foot or in flight. Generate terrain from a seed and batch scenery into meshes in the browser.",
   "type": "module",
   "license": "MIT",
