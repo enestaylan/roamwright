@@ -28,7 +28,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.route('**/favicon.ico', route => route.fulfill({ status: 204 }));
-  for (const fixture of ['piece-batch', 'post-processing', 'contact-shadows', 'outline-render', 'strata-material']) {
+  for (const fixture of ['piece-batch', 'post-processing', 'contact-shadows', 'outline-render', 'strata-material', 'atmosphere']) {
     await page.goto(base + '/test/' + fixture + '.html');
     await page.waitForFunction(() => {
       const result = document.getElementById('result');
