@@ -151,6 +151,8 @@ Create the visible mesh with `createSky({ field, dome })` from `rendering/sky.js
 
 `rendering/water-material.js` creates lake and stream materials with shared time, cloud and wake uniforms. Pass the depth UV transform and water level, the result of `createWakes()`, and the shader declarations from `seaParameters()`. The sea and beach functions in `rendering/sea-shaders.js` take the harbor dimensions and shore palette from the application. `followWake(object, length, beam)` returns a removal function. Update the tracked hulls each frame after world matrices have been updated.
 
+For a wide river built with `streamGeometry`, use `rippledStream(streamMat, { speed, rapidSpeed })` from `rendering/water-material.js`. Supply the downstream speed in metres per second and optionally the speed on steep reaches. The material shares the source clock, lighting and wakes. Its ripples soften at the banks and fade as they become smaller than a pixel.
+
 `rendering/planar-reflection.js` creates a cropped mirror camera and render target for a horizontal plane. Provide the main camera, renderer, scene, a drawing-size callback and a callback returning the lower X/Z corners of wet cells. Call `renderMirror(uniforms, level, strength, occluded, frame)` during rendering, `sizeMirror()` on resize and `dispose()` at teardown.
 
 ## Contributing and license

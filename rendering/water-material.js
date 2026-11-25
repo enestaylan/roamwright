@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FOAM_GLSL, SEA_BODY, SEA_OPACITY, SEA_WAVES } from './sea-shaders.js';
 import { RAIN_GLSL, RAIN_PARS } from './rain-rings.js';
+import { STREAM_FLOW_GLSL } from './stream-flow.js';
 import { DEEP, FAR } from '../geometry/stream.js';
 
 export function createWaterMaterials({ depthRect, level, seaParameters, wakes, cloudShader = 'float cloudShade(vec2 p) { return 1.0; }', cloudUniforms = {} }) {
@@ -52,6 +53,10 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
       ${FOAM_GLSL}
       ${WAKE_PARS}
       ${RAIN_PARS}
+      #ifdef STREAM_RIFFLES
+      uniform vec2 uStreamSpeed;
+      ${STREAM_FLOW_GLSL}
+      #endif
       #ifdef SEA
       ${seaParameters}
       #endif
@@ -93,6 +98,12 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
         float currentFleck = 0.0, rapid = 0.0;
         if (flow > 0.01) {
           vec2 downstream = vCurrent / flow, transverse = vec2(-downstream.y, downstream.x);
+          #ifdef STREAM_RIFFLES
+          vec4 motion = streamFlow(vFlow, vBank.w, dep, uTime * mix(uStreamSpeed.x, uStreamSpeed.y, vFlow.z), dist, fp);
+          g = mix(downstream * motion.y + transverse * motion.x, g, 0.22);
+          currentFleck = motion.z;
+          rapid = motion.w;
+          #else
           float speed = mix(1.4, 4.5, vFlow.z), run = vFlow.y, crossRun = vFlow.x;
           float drift = sin(crossRun * 2.1) * 0.18 + cos(crossRun * 4.1) * 0.1;
           float phase = run * 3.6 - uTime * speed * (2.4 + drift) + sin(crossRun * 2.8 + run * 0.14) * 1.7;
@@ -114,6 +125,7 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
           // far off, or once the bands are finer than a pixel, the foam is drawn as the share of the water it covers
           float even = max(smoothstep(45.0, 220.0, dist), 1.0 - OW(2.3));
           rapid = steep * mix(banded, 0.38, even) * max(1.0 - 0.5 * crossRun * crossRun, 0.0) * smoothstep(0.3, 1.6, dep);
+          #endif
           // a spring: rings spreading from the eye of its pool, where the water wells up
           float eye = length(vBank.zw);
           g += (downstream * vBank.z + transverse * vBank.w) * (exp(-eye * 0.8) * 0.2 * cos(eye * 5.2 - uTime * 3.3) / max(eye, 0.08) * OW(5.2));
@@ -196,13 +208,25 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
   for (const material of [waterMat, streamMat]) stillByDefault(material);
   return { waterMat, streamMat };
 }
-// The same water as `material`, sharing all it follows (light, time, the mirror, the swell), in a colour of its own: `tint`
-// multiplies its body's for a single body of water.
-export function tintedWater(material, tint) {
+// Preserve the live lighting, clock and wake uniforms when specializing a water material.
+function waterVariant(material) {
   const m = material.clone();
   Object.assign(m.defaultAttributeValues, material.defaultAttributeValues);
-  for (const k in material.uniforms) m.uniforms[k] = material.uniforms[k];
+  Object.assign(m.uniforms, material.uniforms);
+  return m;
+}
+
+export function tintedWater(material, tint) {
+  const m = waterVariant(material);
   m.uniforms.uTint = { value: new THREE.Color(...tint) };
+  return m;
+}
+
+// Speeds are metres per second on level and steep reaches, respectively.
+export function rippledStream(material, { speed, rapidSpeed = speed }) {
+  const m = waterVariant(material);
+  m.defines = { ...m.defines, STREAM_RIFFLES: '' };
+  m.uniforms.uStreamSpeed = { value: new THREE.Vector2(speed, rapidSpeed) };
   return m;
 }
 // A sheet of open water has no current, banks or spring of its own.
