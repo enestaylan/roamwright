@@ -15,6 +15,45 @@ import { sstep } from '../math/scalar.js';
  */
 
 /**
+ * Compile waypoints into a timed loop for followRoutine. Each point has x and z in
+ * metres and may have a wait w in seconds, a facing yaw, a role, or a hide flag.
+ * retrace returns through the intermediate points in reverse order.
+ * clearAt(x, z), when supplied, must allow both endpoints and samples at most
+ * half a metre apart on every leg. A blocked route returns null before drawing
+ * from rng. A supplied rng draws a phase and a size in [size, size + spread).
+ */
+export function walkRound(points, speed, { retrace = false, clearAt, rng, size = 1, spread = 0 } = {}) {
+  if (!points.length || !Number.isFinite(speed) || speed <= 0) throw new RangeError('Expected waypoints and a positive walking speed');
+  const seq = retrace ? points.concat(points.slice(1, -1).reverse()) : points;
+  const legs = [];
+  let time = 0, distance = 0;
+  for (let i = 0; i < seq.length; i++) {
+    const a = seq[i], b = seq[(i + 1) % seq.length];
+    if (!Number.isFinite(a.x) || !Number.isFinite(a.z) || !Number.isFinite(b.x) || !Number.isFinite(b.z)
+        || !Number.isFinite(b.w ?? 0) || (b.w ?? 0) < 0) throw new RangeError('Invalid waypoint');
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz), tw = len / speed;
+    if (clearAt) {
+      const steps = Math.max(1, Math.ceil(len / 0.5));
+      for (let j = 0; j <= steps; j++) {
+        if (!clearAt(a.x + dx * (j / steps), a.z + dz * (j / steps))) return null;
+      }
+    }
+    legs.push({
+      x0: a.x, z0: a.z, dx, dz, len, travel: distance, t0: time, tw,
+      dir: Math.atan2(dx, dz), yaw: b.yaw, hide: b.hide, start: a.w > 0, stop: b.w > 0, role: b.role,
+    });
+    time += tw + (b.w || 0);
+    distance += len;
+  }
+  const { x, z } = seq[0];
+  return {
+    ax: x, az: z, bx: x, bz: z, sp: 0, walkSpeed: speed, legs: time ? legs : null,
+    distance, T: time, ph: rng ? rng() * time : 0, s: rng ? size + rng() * spread : size,
+  };
+}
+
+/**
  * Where g's routine puts them at clock t, into `at` ({ x, z, yaw, speed, travel, focus, head, rest }). False while they are
  * indoors at the end of a leg. `headAtHalt(leg, held, left)` gives a beast's head at a halt (1 down), from the seconds it has
  * been held there and those left before the next leg; without it the head is down while grazing.
