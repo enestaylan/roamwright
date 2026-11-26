@@ -78,7 +78,7 @@ Import modules by path, for example `roamwright/geometry/builder.js`. Browse the
 | --- | --- |
 | Seeded generation | `math/noise.js`, `math/random.js` |
 | Geometry and terrain | `geometry/builder.js`, `geometry/heightfield.js`, `geometry/terrain-chunks.js` |
-| Static geometry assembly | `geometry/builder-frame.js`, `geometry/builder-cells.js` |
+| Static geometry assembly | `geometry/builder-frame.js`, `geometry/builder-cells.js`, `geometry/part-ranges.js` |
 | Rendering | `rendering/context.js`, `rendering/sky.js`, `rendering/water-material.js` |
 | Movement | `motion/player.js`, `motion/biped-stride.js` |
 | Scene playback | `runtime/cue-cursor.js`, `rendering/camera-track.js` |

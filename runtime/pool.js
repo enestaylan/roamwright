@@ -142,6 +142,16 @@ export function createPool({
     preparations.set(name, { input, cost });
     for (const slot of slots) slot.holds.delete(name);
   }
+  /**
+   * Register a shared input on first demand. The factory runs once per pool and name,
+   * only when workers are available. A later prepare() can replace the registered input.
+   * @param {string} name - Preparation job needed by dependent jobs.
+   * @param {Function} inputOf - Synchronous factory for the worker input.
+   * @param {number} [cost] - Relative cost of installing it on one worker.
+   */
+  function prepareOnce(name, inputOf, cost = 1) {
+    if (pooled() && !preparations.has(name)) prepare(name, inputOf(), cost);
+  }
   function run(job, input, transfer = [], needs = null, cost = 1) {
     if (!awake().length) return noWorkers();
     if (elastic && slots.every(slot => slot.tasks.length)) grow();
@@ -191,5 +201,5 @@ export function createPool({
     return Promise.all(slots.map(slot => send(slot, job, input, [])));
   }
   if (!broken && initialWorkers) adopt(initialWorkers);
-  return { keepAwake, pooled, poolSize, prepare, ready, run, runOnEach, runOrHere, spread };
+  return { keepAwake, pooled, poolSize, prepare, prepareOnce, ready, run, runOnEach, runOrHere, spread };
 }

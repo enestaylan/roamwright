@@ -48,6 +48,22 @@ test('pool routes immediate work by cost and sends a preparation before its depe
   );
 });
 
+test('prepareOnce shares its first input across requests and skips it without workers', async t => {
+  const installs = [];
+  const worker = endpoint(t, { configure: input => installs.push(input), tile: input => input });
+  const pool = createPool({ startWorkers: () => [worker], idleMs: 100 });
+  const unexpected = () => assert.fail('constructed an unused input');
+  createPool().prepareOnce('configure', unexpected);
+  pool.prepareOnce('configure', () => 'first');
+  await pool.run('tile', 1, [], 'configure');
+  pool.prepareOnce('configure', unexpected);
+  await pool.run('tile', 2, [], 'configure');
+  pool.prepare('configure', 'second');
+  pool.prepareOnce('configure', unexpected);
+  await pool.run('tile', 3, [], 'configure');
+  assert.deepEqual(installs, ['first', 'second']);
+});
+
 test('a failed preparation rejects queued dependents and retries on the same worker', async t => {
   let tries = 0;
   const worker = endpoint(t, {
