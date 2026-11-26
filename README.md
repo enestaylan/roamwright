@@ -91,6 +91,8 @@ Import any module from `roamwright/<folder>/<name>.js`. Each area below names it
 | Player and world | `motion/spaces.js` and `motion/player.js` move a first-person controller over terrain, decks and colliders. | `motion/instance-sight.js`, `motion/daily-clock.js`, `runtime/spatial-audio.js` |
 | Runtime | `runtime/pool.js` and `runtime/worker.js` run named jobs on module workers. `runtime/quality-fit.js` adapts quality to measured GPU time. | `runtime/device-quality.js`, `runtime/quality-store.js`, `runtime/gpu-timing.js`, `runtime/first-use.js`, `runtime/hand-over.js`, `runtime/seen.js`, `runtime/frame-yield.js`, `runtime/grid-cache.js`, `runtime/grid-rows.js`, `runtime/events.js`, `runtime/diagnostic-log.js`, `runtime/module-preload.js`, `runtime/search.js` |
 
+Use `circleClearances(centres, gapFraction = 0)` from `roamwright/math/circle-clearances.js` when laying out circular footprints around fixed x-z positions. It returns one radius limit per input. A value of 0.1 reserves a tenth of the distance between neighbouring centres as a gap. Cap each result by the space available or the desired radius.
+
 ## Contributing and license
 
 See the [contributor guide](CONTRIBUTING.md) for local checks and release instructions. Use [GitHub Issues](https://github.com/enestaylan/roamwright/issues) for bugs and feature requests, or [report a vulnerability privately](https://github.com/enestaylan/roamwright/security/advisories/new).

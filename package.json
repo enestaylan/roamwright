@@ -1,6 +1,6 @@
 {
   "name": "roamwright",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "A procedural worldbuilding engine built on top of Three.js. Generate landscapes with rivers and changing weather, animate crowds, and explore on foot or in flight.",
   "type": "module",
   "license": "MIT",
