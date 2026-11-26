@@ -93,6 +93,14 @@ Import any module from `roamwright/<folder>/<name>.js`. Each area below names it
 
 Use `circleClearances(centres, gapFraction = 0)` from `roamwright/math/circle-clearances.js` when laying out circular footprints around fixed x-z positions. It returns one radius limit per input. A value of 0.1 reserves a tenth of the distance between neighbouring centres as a gap. Cap each result by the space available or the desired radius.
 
+Build static bed furnishings with `geometry/bedding.js`. All three functions append triangles to the supplied geometry builder. Coordinates and dimensions are in world units and colours are linear RGB triples.
+
+- `bedLinen(builder, x, y, z, { width, length, tick, cover, drop, ticking, coverTone, linen, pillows, yaw })` places a mattress of thickness `tick` below the supplied top centre, a cover of length `cover` with a hanging hem of depth `drop`, and one or more pillows at the head. Yaw is in radians.
+- `linenCase(builder, x, y, z, width, height, length, tone, yaw = 0)` builds a seamed cushion above its base centre.
+- `bedCanopy(builder, x, y, z, width, length, tone)` hangs a two-sided cloth canopy from level side rails, with a gathered valance at the foot.
+
+Use `createContactTransition({ duration, pose, transfer })` from `motion/contact-transition.js` for a placement or handoff. Call the returned function with the frame delta in seconds. It drives the supplied pose from rest through contact and back, and invokes the transfer once at full reach, including when a frame spans the contact moment. Drop the transition when its action is cancelled.
+
 ## Contributing and license
 
 See the [contributor guide](CONTRIBUTING.md) for local checks and release instructions. Use [GitHub Issues](https://github.com/enestaylan/roamwright/issues) for bugs and feature requests, or [report a vulnerability privately](https://github.com/enestaylan/roamwright/security/advisories/new).
