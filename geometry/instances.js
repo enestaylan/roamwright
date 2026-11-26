@@ -74,3 +74,26 @@ class Copies {
 }
 
 export { Copies, instanceArrays, instancedMesh, instancedTwin, putInstance };
+
+// Partition static world-space transforms and their colors into independently cullable
+// cells. A single cell keeps its original arrays; order within every cell is stable.
+export function partitionInstances(arrays, cellSize) {
+  if (!(cellSize > 0)) throw new RangeError('Expected a positive cell size');
+  const { matrices, colours } = arrays;
+  const cells = new Map();
+  for (let i = 0; i < matrices.length / 16; i++) {
+    const k = Math.floor(matrices[i*16+12] / cellSize) + ',' + Math.floor(matrices[i*16+14] / cellSize);
+    let ids = cells.get(k);
+    if (!ids) cells.set(k, ids = []);
+    ids.push(i);
+  }
+  if (cells.size < 2) return matrices.length ? [arrays] : [];
+  return Array.from(cells.values(), ids => {
+    const cell = instanceArrays(ids.length);
+    ids.forEach((id, i) => {
+      cell.matrices.set(matrices.subarray(id*16,id*16+16), i*16);
+      cell.colours.set(colours.subarray(id*3,id*3+3), i*3);
+    });
+    return cell;
+  });
+}

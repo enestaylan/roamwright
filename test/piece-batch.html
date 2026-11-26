@@ -9,6 +9,7 @@
   import * as THREE from 'three';
   import { createPieceBatch } from '../rendering/piece-batch.js';
 
+  const { fadingOf } = await import('../rendering/material-lod.js');
   const renderer = new THREE.WebGLRenderer({ antialias: false });
   const camera = new THREE.OrthographicCamera(-2, 2, 1, -1, 0.1, 10);
   camera.position.z = 4;
@@ -57,6 +58,44 @@
         batch.show(ids[1], false);
         reference.children[1].visible = false;
         check(pixels(scene), pixels(reference), label + ' hidden');
+        const share = {value: 0.5};
+        const green = fadingOf(material, share);
+        const view = batch.materialView(green);
+        batch.setView(ids[0], view);
+        reference.children[0].material = green;
+        for (const amount of [0, 0.5, 1, 0.5]) {
+          share.value = amount;
+          check(pixels(scene), pixels(reference), label + ' fade ' + amount);
+        }
+        if (view.geometry !== batch.geometry) throw new Error('Material view needs shared storage');
+        // Compare shadows cast by the same visible pieces through the shared material
+        // view and through ordinary meshes. The slanted light exposes the cast silhouettes.
+        const lit = new THREE.MeshStandardMaterial({color: 0xffffff});
+        const floorGeometry = new THREE.PlaneGeometry(4,2).translate(0,0,-0.6);
+        const setupShadow = group => {
+          const floor = new THREE.Mesh(floorGeometry, lit);
+          floor.receiveShadow = true;
+          const light = new THREE.DirectionalLight(0xffffff,2);
+          light.position.set(2,1,4);
+          light.castShadow = true;
+          light.shadow.mapSize.set(128,128);
+          Object.assign(light.shadow.camera, {left:-3,right:3,bottom:-3,top:3,near:.1,far:12});
+          light.shadow.camera.updateProjectionMatrix();
+          group.add(floor,light);
+          return [floor,light];
+        };
+        material.shadowSide = green.shadowSide = THREE.DoubleSide;
+        batch.castShadow = view.castShadow = true;
+        reference.children.forEach(mesh => {mesh.castShadow=true;});
+        const extras = setupShadow(scene), control = setupShadow(reference);
+        renderer.shadowMap.enabled = true;
+        const shadows = pixels(reference);
+        check(pixels(scene), shadows, label + ' directional shadows');
+        renderer.shadowMap.enabled = false;
+        if (!pixels(reference).some((v,i)=>v !== shadows[i])) throw new Error('Shadow test has no cast shadow');
+        scene.remove(...extras);
+        reference.remove(...control);
+        extras[1].dispose(); control[1].dispose(); lit.dispose(); floorGeometry.dispose();
         batch.remove(ids[1]);
         if (!batch.pack()) throw new Error('Expected packing to reclaim unused capacity');
         check(pixels(scene), pixels(reference), label + ' packed');
@@ -64,6 +103,11 @@
         scene.add(moved);
         batch.move(ids[2], moved);
         check(pixels(scene), pixels(reference), label + ' moved');
+        batch.setView(ids[0]);
+        if (view.visible) throw new Error('Empty material view still shown');
+        reference.children[0].material = material;
+        check(pixels(scene), pixels(reference), label + ' returned to original material');
+        green.dispose();
         batch.free();
         moved.free();
         reference.children.forEach(mesh => mesh.geometry.dispose());

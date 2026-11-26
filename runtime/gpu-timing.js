@@ -31,15 +31,18 @@ export function createGpuTiming(renderer) {
     return new Promise(resolve => {
       const ask = () => {
         const at = performance.now(),
-          waiting = gl.clientWaitSync(fence, 0, 0) === gl.TIMEOUT_EXPIRED;
+          status = gl.clientWaitSync(fence, 0, 0),
+          waiting = status === gl.TIMEOUT_EXPIRED;
         if (waiting && at - since < GIVE_UP_MS) {
           asked++;
-          nextTask(ask);
+          // A queued GPU frame can take tens of milliseconds. Leave the page thread
+          // free between observations. The channel resets nested timer clamping.
+          setTimeout(() => nextTask(ask), 1);
           return;
         }
         gl.deleteSync(fence);
         if (waiting && !globalThis.document?.hidden) blocks = true; // not passed in all that time on a page that is being shown: fences do not work here
-        resolve({ at, prompt: asked === 0, gaveUp: waiting });
+        resolve({ at, prompt: asked === 0, gaveUp: waiting || status === gl.WAIT_FAILED });
       };
       nextTask(ask);
     });

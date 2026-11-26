@@ -67,7 +67,8 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
   const DEPTH_STEP = 1 / 16,
     DEPTH_FROM = -1024,
     PIECES_MOST = 65536;
-  let _keys = new Float64Array(64);
+  const keyBuffers = []; // one scratch buffer per power of two, shared by all passes
+  let _keys;
   // The i-th of `seen` pieces in order, nearest first (farthest first, from the end of the keys, where `far`)
   const nthSeen = (i, seen, far) => _seen[_keys[far ? seen - 1 - i : i] % PIECES_MOST];
   let multi; // the multi-draw extension, or null where the browser has none (the pieces are then drawn one by one)
@@ -85,6 +86,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
       this.layout = null; // [name, array type, item size, normalized] of each attribute, from the first piece
       this.indices = null; // an indexed batch keeps its indices here as well, to fill a larger buffer from when it grows
       this.pieces = []; // by id: { vertexStart, vertexCount, start, count, sphere, shown, depth }, or null where one was removed
+      this.views = new Map(); // child meshes drawing pieces with alternate materials from these same buffers
       this.spare = []; // ids to give out again
       this.starts = new Int32Array(16); // the pieces after the first that the pass being drawn sees: where each begins (in bytes, if indexed)
       this.counts = new Int32Array(16);
@@ -116,6 +118,43 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
       gl.bindBuffer(gl.COPY_WRITE_BUFFER, null);
       if (!geometry.boundingSphere) geometry.computeBoundingSphere();
       return this.record({ vertexStart, vertexCount, start, count, sphere: geometry.boundingSphere.clone() });
+    }
+    // A second material pass over a disjoint subset of this batch, sharing its buffers and
+    // transform. Only setView changes membership. Empty views skip drawing altogether.
+    materialView(material) {
+      const mesh = new THREE.Mesh(this.geometry, material);
+      const members = new Set();
+      this.views.set(mesh, members);
+      mesh.visible = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.layers.mask = this.layers.mask;
+      mesh.castShadow = this.castShadow;
+      mesh.receiveShadow = this.receiveShadow;
+      mesh.boundingSphere = this.boundingSphere.clone();
+      mesh.raycast = this.raycast;
+      mesh.onBeforeRender = (_r, _s, viewer) => this.choose(viewer, mesh, members);
+      mesh.onAfterRender = (_r, _s, _c, _g, drawnWith) => this.drawRest(drawnWith);
+      mesh.onBeforeShadow = (_r, _o, _c, viewer, _g, drawnWith) => this.chooseShadow(viewer, drawnWith, mesh, members);
+      mesh.onAfterShadow = (_r, _o, _c, _v, _g, drawnWith) => this.drawRest(drawnWith);
+      super.add(mesh);
+      return mesh;
+    }
+    setView(id, mesh = null) {
+      const piece = this.pieces[id];
+      if (piece.view === mesh) return;
+      const members = mesh && this.views.get(mesh);
+      if (mesh && !members) throw new Error('Material view belongs to another batch');
+      if (piece.view) {
+        const previous = this.views.get(piece.view);
+        previous.delete(piece);
+        piece.view.visible = previous.size > 0;
+      }
+      piece.view = mesh;
+      if (mesh) {
+        members.add(piece);
+        mesh.visible = true;
+      }
+      this.changes++;
     }
     // Moves a piece into another batch of the same layout (one drawn in another material), copied from buffer to buffer on the card;
     // returns its id there
@@ -164,7 +203,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     // A piece whose vertices are in place: its id
     record(piece) {
       const id = this.spare.length ? this.spare.pop() : this.pieces.length;
-      this.pieces[id] = { ...piece, shown: true, depth: 0 };
+      this.pieces[id] = { ...piece, shown: true, depth: 0, view: null };
       this.changes++;
       this.used.vertices += piece.vertexCount;
       if (this.indices) this.used.indices += piece.count;
@@ -173,6 +212,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     }
     remove(id) {
       const piece = this.pieces[id];
+      if (piece.view) this.setView(id);
       this.pieces[id] = null;
       this.spare.push(id);
       this.changes++;
@@ -207,18 +247,22 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     }
     // The bounds of all pieces, by which Three decides whether the batch is in view at all; with no piece it never is
     bound() {
-      const all = new THREE.Sphere(new THREE.Vector3(), -1);
+      const all = (this.geometry.boundingSphere ??= new THREE.Sphere());
+      all.makeEmpty();
       for (const piece of this.pieces) if (piece) all.union(piece.sphere);
       if (all.isEmpty()) all.radius = -Infinity;
-      this.geometry.boundingSphere = all;
-      this.boundingSphere = all.clone();
+      (this.boundingSphere ??= new THREE.Sphere()).copy(all);
+      for (const mesh of this.views.keys()) {
+        mesh.geometry = this.geometry;
+        mesh.boundingSphere.copy(all);
+      }
     }
     // Three sorts the opaque things of a pass nearest first by the centre of this sphere, so that what stands in front hides what is
     // behind before it is shaded: the batch is placed where its nearest piece in the viewer's picture stands, as that piece's own mesh
     // was, with a radius that still holds every piece (the sphere is also what Three culls the whole batch by)
-    sortBy(nearest) {
+    sortBy(nearest, mesh) {
       const all = this.geometry.boundingSphere,
-        at = this.boundingSphere;
+        at = mesh.boundingSphere;
       at.center.copy(nearest.sphere.center);
       at.radius = all.radius + at.center.distanceTo(all.center);
     }
@@ -237,9 +281,12 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     // Packs the pieces together, one after another, into buffers `room` times what they fill, once they fill less than `use`
     // of the ones they are in (a buffer only ever grows, and pieces are let go): what each piece holds is copied across on the card,
     // and its indices are written again from the copy kept here; a batch with no piece left gives its room back. Returns whether it did either.
+    needsPack(use = this.fit.use) {
+      return this.held.vertices >= PACK_LEAST && this.used.vertices < this.held.vertices * use;
+    }
     pack() {
       const { vertices: filled, indices: filledIndices } = this.used;
-      if (this.held.vertices < PACK_LEAST || filled >= this.held.vertices * this.fit.use) return false;
+      if (!this.needsPack()) return false;
       if (!filled) {
         this.empty();
         return true;
@@ -313,6 +360,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
       }
       gl.bindBuffer(gl.COPY_WRITE_BUFFER, null);
       this.geometry.boundingSphere = old.boundingSphere;
+      for (const mesh of this.views.keys()) mesh.geometry = this.geometry;
       this.discard(old);
     }
     // Frees the batch's buffers on the card, once it is let go
@@ -328,23 +376,26 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     }
     // The pieces a camera sees, nearest first (farthest first in a see-through material): the first becomes the range Three draws,
     // the others are listed for the multi-draw that follows it
-    choose(viewer) {
+    choose(viewer, mesh = this, pieces = this.pieces) {
       _view.setFromProjectionMatrix(_clip.multiplyMatrices(viewer.projectionMatrix, viewer.matrixWorldInverse).multiply(this.matrixWorld));
       const e = _clip.elements;
       let seen = 0;
-      for (const piece of this.pieces) {
-        if (!piece || !piece.shown || !_view.intersectsSphere(piece.sphere)) continue;
+      for (const piece of pieces) {
+        if (!piece || (mesh === this && piece.view) || !piece.shown || !_view.intersectsSphere(piece.sphere)) continue;
         const c = piece.sphere.center;
         piece.depth = e[2] * c.x + e[6] * c.y + e[10] * c.z + e[14];
         _seen[seen++] = piece;
       }
-      if (seen > _keys.length) _keys = new Float64Array(2 ** Math.ceil(Math.log2(seen)));
-      for (let i = 0; i < seen; i++) _keys[i] = Math.max(0, Math.floor((_seen[i].depth - DEPTH_FROM) / DEPTH_STEP)) * PIECES_MOST + i;
-      _keys.fill(Infinity, seen);
-      _keys.sort();
-      const far = this.material.transparent,
-        first = seen ? nthSeen(0, seen, far) : null;
-      if (first && camera === viewer && !this.material.transparent) this.sortBy(first);
+      if (seen > 1) {
+        const size = Math.ceil(Math.log2(seen));
+        _keys = keyBuffers[size] ??= new Float64Array(2 ** size);
+        for (let i = 0; i < seen; i++) _keys[i] = Math.max(0, Math.floor((_seen[i].depth - DEPTH_FROM) / DEPTH_STEP)) * PIECES_MOST + i;
+        _keys.fill(Infinity, seen);
+        _keys.sort();
+      }
+      const far = mesh.material.transparent,
+        first = seen > 1 ? nthSeen(0, seen, far) : seen ? _seen[0] : null;
+      if (first && camera === viewer && !far) this.sortBy(first, mesh);
       if (first) this.geometry.setDrawRange(first.start, first.count);
       else this.geometry.setDrawRange(0, -1); // a range Three takes for nothing to draw
       this.rest = Math.max(0, seen - 1);
@@ -394,8 +445,11 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     }
     // In a point light's shadow it is drawn only where it casts there, and not where a cached point shadow already contains its current revision
     onBeforeShadow(_renderer, _object, _camera, shadowCamera, _geometry, drawnWith) {
-      if (!drawnWith.isMeshDistanceMaterial || (this.pointShadow && !(isStill(this) && keptAway(this, this.changes))))
-        this.choose(shadowCamera);
+      this.chooseShadow(shadowCamera, drawnWith, this, this.pieces);
+    }
+    chooseShadow(shadowCamera, drawnWith, mesh, pieces) {
+      if (!drawnWith.isMeshDistanceMaterial || (this.pointShadow && !(isStill(mesh) && keptAway(mesh, this.changes))))
+        this.choose(shadowCamera, mesh, pieces);
       else {
         this.geometry.setDrawRange(0, -1);
         this.rest = 0;
