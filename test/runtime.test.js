@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { MessageChannel } from 'node:worker_threads';
 import { createFirstUse } from '../runtime/first-use.js';
 import { createHandOver } from '../runtime/hand-over.js';
-import { createPool } from '../runtime/pool.js';
+import { createPool, workerCapacity } from '../runtime/pool.js';
 import { createVisibilityQueries } from '../runtime/seen.js';
 import { attachWorker } from '../runtime/worker.js';
 
@@ -221,4 +221,41 @@ test('an occlusion answer hides the mesh only while it remains fresh', () => {
   assert.equal(visibility.hidden(watch), true);
   frame = 5;
   assert.equal(visibility.hidden(watch), false);
+});
+
+test('worker capacity follows device concurrency and grows only for concurrent work', async t => {
+  assert.deepEqual([1, 2, 6, 12, 24, NaN, Infinity].map(n => workerCapacity(n)), [1, 1, 5, 11, 23, 1, 1]);
+  let started = 0;
+  const pool = createPool({
+    maxWorkers: 3, idleMs: 5,
+    createWorker: () => {
+      const id = ++started;
+      let state;
+      return endpoint(t, { ping: () => id, set: value => { state = value; }, get: () => state });
+    },
+  });
+  assert.equal(await pool.run('ping'), 1);
+  assert.equal(await pool.run('ping'), 1);
+  assert.deepEqual(await Promise.all(Array.from({length: 5}, () => pool.run('ping'))), [1, 2, 3, 1, 2]);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(pool.poolSize(), 0);
+  assert.deepEqual(await pool.runOnEach('ping', null, { activeOnly: true }), []);
+  assert.equal(await pool.run('ping'), 4);
+  assert.deepEqual(await pool.runOnEach('ping', null, { activeOnly: true }), [4]);
+  await pool.runOnEach('set', 'configured');
+  assert.deepEqual(await Promise.all([1, 2, 3].map(() => pool.run('get'))), Array(3).fill('configured'));
+});
+
+test('worker creation limit keeps the available workers usable', async t => {
+  let calls = 0;
+  const pool = createPool({
+    maxWorkers: 8, idleMs: 1,
+    createWorker: () => {
+      if (++calls > 2) throw Error('resource limit');
+      return endpoint(t, { echo: value => value });
+    },
+  });
+  assert.deepEqual(await pool.runOnEach('echo', 7), [7, 7]);
+  assert.equal(await pool.run('echo', 8), 8);
+  assert.equal(calls, 3);
 });

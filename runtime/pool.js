@@ -1,12 +1,24 @@
+/** The pool can use every logical processor the browser exposes beyond its main thread. */
+export function workerCapacity(cores = globalThis.navigator?.hardwareConcurrency) {
+  return Number.isFinite(cores) ? Math.max(1, Math.floor(cores) - 1) : 1;
+}
+
 /**
  * Route weighted jobs to FIFO workers. Each worker receives { job, input } and
  * replies in order with { result } or { error }. Supply prestarted workers to
- * adopt them immediately, and a synchronous factory to restart after idle.
+ * adopt them immediately. Supply startWorkers for a fixed pool, or createWorker
+ * for a pool that grows with concurrent work up to maxWorkers. A broadcast
+ * initializes every worker, so later jobs see the state it set.
  */
-export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn = message => console.warn(message) } = {}) {
+export function createPool({
+  startWorkers, createWorker, initialWorkers, maxWorkers = workerCapacity(),
+  idleMs = 4000, warn = message => console.warn(message),
+} = {}) {
   const slots = [];
   const preparations = new Map();
-  let broken = typeof startWorkers !== 'function',
+  const elastic = typeof createWorker === 'function';
+  let capacity = Number.isFinite(maxWorkers) ? Math.max(1, Math.floor(maxWorkers)) : 1;
+  let broken = !elastic && typeof startWorkers !== 'function',
     idle = 0,
     held = 0;
 
@@ -29,14 +41,24 @@ export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn =
     rest();
     for (const task of waiting) task.refuse(new Error('pool: ' + reason));
   }
-  function adopt(workers) {
-    for (const worker of workers) {
-      const slot = { worker, tasks: [], holds: new Set() };
-      worker.onmessage = ({ data }) => finish(slot, data);
-      worker.onerror = event => giveUp(event.message || 'a worker could not start');
-      worker.onmessageerror = () => giveUp('an answer could not be read');
-      slots.push(slot);
+  function attach(worker) {
+    const slot = { worker, tasks: [], holds: new Set() };
+    worker.onmessage = ({ data }) => finish(slot, data);
+    worker.onerror = event => giveUp(event.message || 'a worker could not start');
+    worker.onmessageerror = () => giveUp('an answer could not be read');
+    slots.push(slot);
+  }
+  function grow() {
+    if (!elastic || broken || slots.length >= capacity) return;
+    try {
+      attach(createWorker());
+    } catch (error) {
+      if (!slots.length) giveUp(error.message);
+      else capacity = slots.length; // A browser resource limit can be lower than its hardware count.
     }
+  }
+  function adopt(workers) {
+    for (const worker of workers) attach(worker);
     if (!workers.length || workers.some(worker => worker.failed)) giveUp('the workers could not start');
     else restWhenIdle();
   }
@@ -89,7 +111,8 @@ export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn =
   function awake() {
     if (!broken && !slots.length) {
       try {
-        adopt(startWorkers());
+        if (elastic) grow();
+        else adopt(startWorkers());
       } catch (error) {
         giveUp(error.message);
       }
@@ -109,6 +132,7 @@ export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn =
   }
   function run(job, input, transfer = [], needs = null, cost = 1) {
     if (!awake().length) return noWorkers();
+    if (elastic && slots.every(slot => slot.tasks.length)) grow();
     let least = leastBusy(slots);
     if (needs && !least.holds.has(needs)) {
       const holding = slots.filter(slot => slot.holds.has(needs)),
@@ -129,7 +153,9 @@ export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn =
   function spread(name, count) {
     const preparation = preparations.get(name);
     if (!preparation) return;
-    const others = awake().filter(slot => !slot.holds.has(name)),
+    if (!awake().length) return;
+    while (elastic && slots.length < Math.min(count, capacity)) grow();
+    const others = slots.filter(slot => !slot.holds.has(name)),
       more = Math.min(count, slots.length) - (slots.length - others.length);
     for (const slot of others.sort((a, b) => load(a) - load(b)).slice(0, Math.max(0, more))) {
       slot.holds.add(name);
@@ -144,8 +170,11 @@ export function createPool({ startWorkers, initialWorkers, idleMs = 4000, warn =
         slot.holds.add(job);
       }
   }
-  function runOnEach(job, input) {
-    if (!awake().length) return noWorkers();
+  function runOnEach(job, input, { activeOnly = false } = {}) {
+    if (!activeOnly) {
+      if (!awake().length) return noWorkers();
+      while (elastic && slots.length < capacity) grow();
+    }
     return Promise.all(slots.map(slot => send(slot, job, input, [])));
   }
   if (!broken && initialWorkers) adopt(initialWorkers);
