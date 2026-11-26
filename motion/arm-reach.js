@@ -1,3 +1,4 @@
+import { wrapRadians } from '../math/periodic.js';
 import * as THREE from 'three';
 import { clamp } from '../math/scalar.js';
 
@@ -46,9 +47,9 @@ export function createArmReach({ elbowDirection, minBend, maxBend }) {
       cosReachAngle = clamp((localGrip.x * localGrip.x + l1 * l1 + rho * rho - far * far) / (2 * l1 * rho), -1, 1),
       turn = Math.acos(cosReachAngle);
     let bend = turn - phi;
-    bend = Math.atan2(Math.sin(bend), Math.cos(bend));
+    bend = wrapRadians(bend);
     if (bend > maxBend || bend < minBend) {
-      const other = Math.atan2(Math.sin(-turn - phi), Math.cos(-turn - phi));
+      const other = wrapRadians(-turn - phi);
       if (Math.abs(other - (maxBend + minBend) / 2) < Math.abs(bend - (maxBend + minBend) / 2)) bend = other;
     }
     bend = clamp(bend, minBend, maxBend);

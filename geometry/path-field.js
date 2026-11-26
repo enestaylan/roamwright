@@ -5,6 +5,36 @@
 
 import { clamp } from '../math/scalar.js';
 
+/** Distance in world units from an X/Z point to a finite segment, including coincident endpoints.
+ * @param {number} x
+ * @param {number} z
+ * @param {[number, number]} start
+ * @param {[number, number]} end
+ */
+export function segmentDistance(x, z, start, end) {
+  const dx = end[0] - start[0], dz = end[1] - start[1];
+  const px = x - start[0], pz = z - start[1];
+  const fraction = clamp((px * dx + pz * dz) / (dx * dx + dz * dz || 1), 0, 1);
+  return Math.hypot(px - dx * fraction, pz - dz * fraction);
+}
+
+/** Test an X/Z point against an implicitly closed polygon using the even-odd rule.
+ * A horizontal scan includes its left crossing and excludes its right crossing.
+ * @param {[number, number][]} ring
+ * @param {number} x
+ * @param {number} z
+ */
+export function ringContains(ring, x, z) {
+  let inside = false;
+  for (let i = 0; i < ring.length; i++) {
+    const start = ring[i], end = ring[(i + 1) % ring.length];
+    if (start[1] > z !== end[1] > z && x < ((end[0] - start[0]) * (z - start[1])) / (end[1] - start[1]) + start[0]) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 /**
  * @param {[number, number][]} line - Ordered X/Z points in world units.
  * @returns {[number, number, number, number]} Bounds in the order [minX, maxX, minZ, maxZ].

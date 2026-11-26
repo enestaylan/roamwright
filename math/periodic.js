@@ -18,3 +18,9 @@ export function approachPhase(from, to, step, onArrival) {
   }
   return (from + Math.sign(delta) * step + 1) % 1;
 }
+
+/** Wrap an angle in radians to its signed principal value in [-π, π].
+ * Unlike cycleDelta, opposite half turns retain the sign of their sine. */
+export function wrapRadians(angle) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}

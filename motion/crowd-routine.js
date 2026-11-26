@@ -1,3 +1,4 @@
+import { wrapRadians } from '../math/periodic.js';
 import { sstep } from '../math/scalar.js';
 
 /**
@@ -208,5 +209,5 @@ export { detailLevel } from '../rendering/detail-range.js';
 export function easeHeading(dir, want, gap, rate, snap = 0.2) {
   if (gap > snap || gap < 0) return want;
   const turn = want - dir;
-  return dir + Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, gap * rate);
+  return dir + wrapRadians(turn) * Math.min(1, gap * rate);
 }
