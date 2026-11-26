@@ -89,26 +89,6 @@ Import any module from `roamwright/<folder>/<name>.js`. Each area below names it
 | Player and world | `motion/spaces.js` and `motion/player.js` move a first-person controller over terrain, decks and colliders. | `motion/instance-sight.js`, `motion/daily-clock.js`, `runtime/spatial-audio.js` |
 | Runtime | `runtime/pool.js` and `runtime/worker.js` run named jobs on module workers. `runtime/quality-fit.js` adapts quality to measured GPU time. | `runtime/device-quality.js`, `runtime/quality-store.js`, `runtime/gpu-timing.js`, `runtime/first-use.js`, `runtime/hand-over.js`, `runtime/seen.js`, `runtime/frame-yield.js`, `runtime/grid-cache.js`, `runtime/grid-rows.js`, `runtime/events.js`, `runtime/diagnostic-log.js`, `runtime/module-preload.js`, `runtime/search.js` |
 
-For triangle lists, `indexParts` from `geometry/index-parts.js` reuses vertices whose complete attribute records are byte-identical and preserves the original triangle order. Run it where the arrays are built.
-
-Use `shapeParts`, `addShape` and `partsGeometry` from `geometry/foliage.js` to assemble immutable, indexed plant models with per-vertex tints and leaf flags. `partitionInstances(arrays, cellSize)` from `geometry/instances.js` groups transforms and colours into horizontal cells for camera and shadow culling. For opaque instances with independently owned matrix and colour attributes, `createInstanceVisibility(mesh)` from `geometry/instance-visibility.js` returns a function to show or hide a logical ID. The mesh submits only its visible prefix. Instance order and shader `gl_InstanceID` can change.
-
-For pieces that change material, `batch.materialView(material)` creates a child mesh that shares the GPU buffers. Assign pieces with `batch.setView(id, mesh)` and return them to the original material with `batch.setView(id)`. Configure the batch layers and shadow flags before creating the view. Treat the child transform and visibility as batch-managed.
-
-Use `createFrameBudget` from `runtime/frame-budget.js` for optional synchronous work shared by multiple systems. Call `begin(rafTimestamp)` once per frame. Register each small step once with `task(fn)`. Its wrapper preserves the receiver and arguments and returns true after running the step, or false when the caller should retry it. Keep worker jobs concurrent and apply ready results in application order. The budget accounts for elapsed work, reserves time before presentation, and reduces the next allowance after a missed frame. After `maxWaitMs`, the longest-waiting producer can advance one step even on a busy frame. An individual step runs to completion, so divide expensive work at safe boundaries. Before the first frame, steps run immediately.
-
-`createGroundLookahead` from `motion/ground-lookahead.js` predicts a horizontal position from samples in seconds, with a capped lead and a reset after jumps or pauses. `joinParts` from `geometry/part-ranges.js` assembles attribute buffers from ordered position ranges.
-
-For small roof or terrain probes, pass `queryResult: true` to `createHeightProbe` to return the packed minimum depth using asynchronous WebGL 2 occlusion queries. Tiles up to 32 × 32 use this path. The default pixel readback is available for larger targets and renderers where readback is inexpensive.
-
-Pass a `revisions` object mapping grid names to input-version strings to `createGridCache` to reuse compatible grids across builds. Saving a grid retires its previous revision. Names without a revision bypass storage. The existing `build` string versions the whole cache when `revisions` is omitted.
-
-Pass an optional world-space `initialPosition` to `terrainChunks` to create the terrain at its first viewing distance. Subsequent updates follow the camera.
-
-For elevated viewpoints, pass the eye height and an optional positive distance scale as the last arguments to `createCellLod().update(cells, x, z, distance, detail, density, y, scale)`. Set `cy` on each cell to its centre elevation. Detail follows the eye in three dimensions while visibility follows ground distance. For immutable trees or other scatter whose shaders use only instance transforms and colours, `createCellLod({ compact: true })` submits only visible far instances in their original order. Materials that use `gl_InstanceID` or custom per-instance attributes should use the default mode, which keeps their slots stable.
-
-For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page.
-
 ## Contributing and license
 
 See the [contributor guide](CONTRIBUTING.md) for local checks and release instructions. Use [GitHub Issues](https://github.com/enestaylan/roamwright/issues) for bugs and feature requests, or [report a vulnerability privately](https://github.com/enestaylan/roamwright/security/advisories/new).
