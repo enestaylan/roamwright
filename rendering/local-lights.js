@@ -32,7 +32,26 @@ export function installLocalLightCulling(chunks = ShaderChunk) {
         directLight.visible = false;
         directLight.direction = vec3( 0.0 );
       } else { ${lookup} }`;
-    text = text.slice(0, start) + loop.replace(lookup, culled).replace(CALL, 'if ( directLight.visible ) ' + CALL) + text.slice(end);
+    let shaded = loop.replace(lookup, culled).replace(CALL, 'if ( directLight.visible ) ' + CALL);
+    if (light === 'pointLight') {
+      // Three orders shadow casters first. Leave their shadow reads and light arithmetic together.
+      // For other points the uniform colour can bypass the entire unrolled light evaluation.
+      const assign = 'pointLight = pointLights[ i ];';
+      if (!shaded.includes(assign)) throw new Error('local-lights: Three.js point light assignment not as expected');
+      const unshadowed = '#if UNROLLED_LOOP_INDEX >= NUM_POINT_LIGHT_SHADOWS';
+      const begin = `${assign}
+${unshadowed}
+if (pointLight.color != vec3(0.0)) {
+#endif
+`;
+      const end = `${CALL}
+${unshadowed}
+}
+#endif
+`;
+      shaded = shaded.replace(assign, begin).replace(CALL, end);
+    }
+    text = text.slice(0, start) + shaded + text.slice(end);
   }
   if (!text.includes(SHADOW_READ)) throw new Error('local-lights: Three.js point shadow not as expected');
   chunks.lights_fragment_begin = text.replace(SHADOW_READ, SHADOW_TURNED);

@@ -48,20 +48,21 @@ try {
   scene.add(floor,block,moving,instances,point);
   scene.add(new T.HemisphereLight(0xffffff,0x777777,.3));
   const target = new T.WebGLRenderTarget(96,96);
-  function pixels() {
+  function pixels(output = target) {
     renderer.info.reset();
-    renderer.setRenderTarget(target);
+    renderer.setRenderTarget(output);
     renderer.render(scene,camera);
-    const image = new Uint8Array(96*96*4);
-    renderer.readRenderTargetPixels(target,0,0,96,96,image);
+    const image = output.texture.type === T.HalfFloatType ? new Uint16Array(96*96*4) : new Uint8Array(96*96*4);
+    renderer.readRenderTargetPixels(output,0,0,96,96,image);
     return image;
   }
   const spot = new T.SpotLight(0xff9933, 18, 4, Math.PI / 4, .3);
   spot.position.set(2, 3, 1);
   scene.add(spot, spot.target);
   const nativeSurface = surface.clone();
-  nativeSurface.onBeforeCompile = shader => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>', nativeLights);
+  nativeSurface.onBeforeCompile = shaderData => {
+    shader.patch(shaderData);
+    shaderData.fragmentShader = shaderData.fragmentShader.replace('#include <lights_fragment_begin>', nativeLights);
   };
   const receivers = [floor, block, moving, instances];
   for (const [reach, intensity] of [[0, 30], [3.5, 30], [.1, 30], [4, 0]]) {
@@ -73,8 +74,42 @@ try {
     const actual = pixels();
     check(actual.every((value, i) => value === expected[i]), 'Culled local lighting changed pixels');
   }
-  scene.remove(spot, spot.target);
+  const hdr = new T.WebGLRenderTarget(96,96,{type:T.HalfFloatType});
+  const cookie = new T.DataTexture(new Uint8Array([255,128,80,255]),1,1);
+  cookie.needsUpdate = true;
+  spot.map = cookie;
+  spot.castShadow = true;
+  spot.shadow.mapSize.set(32,32);
+  spot.distance = 0;
+  point.intensity = 0;
+  function checkIntensityFade(light, peak, referenceTarget) {
+    let unlit, programs;
+    for (const power of [0,peak / 3,peak,0]) {
+      light.intensity = power;
+      for (const mesh of receivers) mesh.material = nativeSurface;
+      const expected = pixels(referenceTarget);
+      for (const mesh of receivers) mesh.material = surface;
+      const actual = pixels(referenceTarget);
+      check(actual.every((v,i) => v === expected[i]), light.type+' changed receiver colour at power '+power);
+      const image = referenceTarget === hdr ? actual : pixels(hdr);
+      if (!unlit) {
+        unlit = image;
+        programs = renderer.info.programs.length;
+      } else {
+        check(image.some((v,i) => v !== unlit[i]) === (power > 0), light.type+' fade did not reach the receiver');
+        check(renderer.info.programs.length === programs, light.type+' intensity transition compiled another program');
+      }
+    }
+  }
+  checkIntensityFade(spot,18,hdr);
+  const fill = new T.PointLight(0x6699ff,0,0);
+  fill.position.set(1,2,1);
+  scene.add(fill);
+  checkIntensityFade(fill,25,target);
+  scene.remove(fill, spot, spot.target);
   spot.dispose();
+  cookie.dispose();
+  hdr.dispose();
   nativeSurface.dispose();
   point.distance = 0;
   point.intensity = 30;
