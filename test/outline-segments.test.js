@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createOutlineRecorder } from 'roamwright/geometry/outline-segments.js';
+
+test('merging drained paths appends in order and preserves the selected surface spans', () => {
+  const page = createOutlineRecorder(4), region = createOutlineRecorder(4);
+  const edge = [[0, 1, 2], [3, 4, 5]];
+  page.path('existing', edge, false);
+  region.path('existing', [[6, 7, 8], [9, 10, 11], [12, 13, 14]]);
+  region.rectangle('gallery', 1, 4, 2, 3, [5, 8], Math.PI / 2, false);
+  region.ring('round', 2, 4, 6, 1);
+  const record = structuredClone(region.drain());
+  assert.deepEqual(region.drain(), { outlines: [], shines: [] });
+  page.merge(record);
+  assert.deepEqual([...page.outlines.keys()], ['existing', 'gallery', 'round']);
+  assert.deepEqual([...page.shines.keys()], ['existing', 'round']);
+  const segments = [6, 7, 8, 9, 10, 11, 9, 10, 11, 12, 13, 14];
+  assert.deepEqual(page.outlines.get('existing'), [...edge.flat(), ...segments]);
+  assert.deepEqual(page.shines.get('existing'), segments);
+  record.outlines[0][1].fill(-1);
+  assert.deepEqual(page.shines.get('existing'), segments);
+  assert.deepEqual(page.outlines.get('existing'), [...edge.flat(), ...segments]);
+  const corners = page.outlines.get('gallery');
+  assert.equal(corners.length, 2 * 4 * 6);
+  assert.deepEqual(corners.slice(0, 6).map(Math.round), [-2, 5, 6, -2, 5, 2]);
+  assert.deepEqual(corners.slice(21, 24), corners.slice(0, 3));
+  assert.equal(corners[25], 8);
+  const ring = page.outlines.get('round');
+  assert.equal(ring.length, 4 * 6);
+  assert.deepEqual(ring.slice(0, 6), [3, 4, 6, 2, 4, 7]);
+  assert.deepEqual(page.shines.get('round'), ring);
+  assert.throws(() => createOutlineRecorder(2), RangeError);
+});
