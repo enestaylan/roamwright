@@ -76,6 +76,12 @@ renderer.render(scene, camera);
 
 Import any module from `roamwright/<folder>/<name>.js`. Each area below names its main modules first. Its other modules are listed after them. See each module’s source for its parameters, and the [tests](test) and browser fixtures for complete setups.
 
+For frame diagnostics, `createFramePacingMonitor({ minimumFps, windowMs, windows, onSlow })` from `runtime/frame-pacing.js` accepts displayed frame intervals in milliseconds via `sample(ms)`. The callback receives the average FPS and duration of the first consecutive slow windows. Call `reset()` on a pause or view change.
+
+For terrain queries, `packCellMask(width, height, includesIndex)` from `geometry/cell-mask.js` packs row-major membership into a transferable byte array (`mask.bits`). Read it with `cellIsSet(mask, column, row)`. Out-of-bounds coordinates return false.
+
+For wind-driven rain, `createRainStreaks({ capacity, windUniforms, random })` from `rendering/rain-streaks.js` takes the uniforms from `createWind()` and an optional random source. Add its `mesh` to the scene, set its `color`, and call `update(eyePosition, elapsedSeconds, intensity, density)` each frame. Intensity and density range from zero to one. Dispose the mesh’s geometry and material when finished. [Browser fixture](test/rain-streaks.js).
+
 | Area | Main modules | Also includes |
 | --- | --- | --- |
 | Foundations | `math/noise.js`, `math/random.js`, `math/curve.js` and `math/color.js` provide seeded noise, resumable random streams, spline samples and colour conversion. They also run in workers. | `math/scalar.js`, `math/cell-edge.js`, `math/periodic.js` |
