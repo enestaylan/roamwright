@@ -1,4 +1,8 @@
-// Seeded height and scree fields for elliptical uplands, branching ranges and groups of hills.
+/**
+ * Add seeded hills, ridges and escarpments to a terrain height function.
+ * {@link createMountainRanges} samples relief and loose rock for the same location.
+ * @module
+ */
 import { clamp, lerp, sstep } from './scalar.js';
 import { createNoise } from './noise.js';
 import { createHash } from './random.js';
@@ -43,10 +47,37 @@ const RANGE_FROM = [0.3, 0.75], // how broken an upland must be to begin to be a
   SWELL_WARP = 0.22, //      and how far that radius is pulled about
   SEG = 9; //                numbers to a spur: its ends (u, v), the metres along it at each, its flanks' width at each, its ribs' phase
 
+/**
+ * @typedef {object} EllipticalUpland
+ * @property {number} x - Centre X in metres.
+ * @property {number} z - Centre Z in metres.
+ * @property {number} rx - X radius in metres, or half-length along the supplied axis.
+ * @property {number} rz - Z radius in metres, or half-width across the supplied axis.
+ * @property {number} h - Height scale in metres.
+ * @property {number} rough - Relief roughness from 0 for a smooth swell to 1 for a broken ridge.
+ * @property {number} [axis] - Long-axis bearing in radians from +X toward +Z.
+ * @property {number} [face] - Bearing toward the steep side of an escarpment, in radians.
+ * @property {number} [hills] - Number of hills to scatter inside the ellipse.
+ */
+
+/**
+ * @typedef {object} Ridge
+ * @property {[number, number, number][]} crest - At least two distinct consecutive points, each [x, z, height multiplier].
+ * @property {number} wide - Flank half-width in metres.
+ * @property {number} h - Height in metres before applying each crest point’s multiplier.
+ * @property {number} rough - Relief roughness from 0 to 1.
+ * @property {number} [face] - Bearing toward the steep side of an escarpment, in radians from +X toward +Z.
+ */
+
 // The long axis of an upland given as an ellipse ({ x, z, rx, rz }), as [bearing, half-length, half-width]: the longer of its
 // radii, or along `axis` (a bearing: 0 east, clockwise seen from above), with rx then its half-length and rz its half-width.
 const ellipseAxis = m => (m.axis !== undefined ? [m.axis, m.rx, m.rz] : m.rx >= m.rz ? [0, m.rx, m.rz] : [Math.PI / 2, m.rz, m.rx]);
-// The line of an upland's crest as its data gives it ([[x, z], ...]) and its half-width, for the map's drawing of it.
+/**
+ * Get the crest line and flank half-width for drawing a map. An explicit ridge
+ * keeps its original point array, including the third height component. An
+ * ellipse yields two X/Z endpoints along its long axis.
+ * @param {EllipticalUpland | Ridge} m - Landform supplied to the range layout.
+ */
 export function crestOf(m) {
   if (m.crest) return { line: m.crest, wide: m.wide };
   const [bearing, a, b] = ellipseAxis(m),
@@ -54,7 +85,23 @@ export function crestOf(m) {
   return { line: [-reach, reach].map(u => [m.x + u * Math.cos(bearing), m.z + u * Math.sin(bearing)]), wide: b };
 }
 
-// Each field owns its layout and sampling scratch so separate terrains can be sampled independently.
+/**
+ * Build a reusable field of mountain relief. Call `layout` with ellipses or ridgelines,
+ * then add `heightAt(x, z)` to the base terrain elevation in metres. Each call also
+ * overwrites `surface.scree`, the loose-rock amount for that sample.
+ * Calling `layout` again replaces the previous landforms. Keep their order stable
+ * when reproducing a landscape because each landform’s seed depends on its index.
+ * @param {number} [seed] - World seed for the ridges, spurs and surface detail.
+ * @example
+ * ```js
+ * import { createMountainRanges } from 'roamwright/math/mountain-ranges.js';
+ *
+ * const mountains = createMountainRanges(42);
+ * mountains.layout([{ crest: [[0, 0, 0.6], [120, 40, 1]], wide: 50, h: 90, rough: 0.8 }]);
+ * const elevation = 12 + mountains.heightAt(80, 25);
+ * const looseRock = mountains.surface.scree;
+ * ```
+ */
 export function createMountainRanges(seed = 0) {
   const { fbm, ridged, vnoise } = createNoise(seed);
   const hash2 = createHash(seed);
@@ -347,7 +394,11 @@ export function createMountainRanges(seed = 0) {
       near = k > 0 ? Math.max(k - Math.abs(a - b), 0) / k : 0;
     return most + (near * near * k) / 4;
   }
-  // Metres the uplands laid out raise the ground at (x, z); `range` then says what else was found there.
+  /**
+   * @param {number} x - World X in metres.
+   * @param {number} z - World Z in metres.
+   * @returns {number} Added elevation in metres. An empty layout contributes zero.
+   */
   function rangesAt(x, z) {
     let h = 0;
     range.scree = 0;
@@ -452,7 +503,7 @@ export function createMountainRanges(seed = 0) {
     }
     return out;
   }
-  // Lays out a land's uplands (its data's list), for rangesAt.
+  /** @param {(EllipticalUpland | Ridge)[]} list - Landforms in stable seed order. */
   function layOutRanges(list) {
     uplands = list.flatMap((m, i) => {
       const seed = 400 + i * 41;

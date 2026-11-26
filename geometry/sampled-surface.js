@@ -1,8 +1,32 @@
-// A sheet sampled on a grid with smooth normals: fn(u, v) -> [x, y, z]. Sagging canvas, flags, earth banks and rubble mounds are all made with it.
-// col is one colour, or col(u, v) for each cell of the grid; with o.blend, col(u, v) is read at each point of the grid instead and
-// blended across the cells (ground whose colour changes smoothly, without a patchwork of cells).
+/**
+ * Tessellate a parametric sheet into triangles with smooth normals for a geometry builder.
+ * @module
+ */
+
 const buffers = [];
-// Callbacks may themselves sample another surface. Only inactive buffers are reused.
+/**
+ * Append two triangles per grid cell. On an X/Z sheet where u increases along +X
+ * and v along +Z, the front faces point upward. A second side duplicates the
+ * triangles with reversed winding and normals.
+ * @param {Pick<import('./builder.js').GB, 'raw'>} gb - Destination for the generated vertices.
+ * @param {number} nu - Positive integer cell count along u.
+ * @param {number} nv - Positive integer cell count along v.
+ * @param {(u: number, v: number) => ArrayLike<number>} fn - Map coordinates in [0, 1] to [x, y, z].
+ * @param {ArrayLike<number> | ((u: number, v: number) => ArrayLike<number>)} col -
+ *   Linear RGB colour or a function sampled at cell centres, or at vertices when blending.
+ * @param {{blend?: boolean, flip?: boolean, back?: boolean | ArrayLike<number>}} [o] -
+ *   Blend vertex colours, flip the front winding, or add a back side. Set back to true
+ *   to reuse front colours, or supply a separate linear RGB colour.
+ * @example
+ * ```js
+ * import { GeometryBuilder } from 'roamwright';
+ * import { sampleSurface } from 'roamwright/geometry/sampled-surface.js';
+ *
+ * const ground = new GeometryBuilder();
+ * sampleSurface(ground, 8, 8, (u, v) => [16 * u, 2 * Math.sin(u * Math.PI), 16 * v], [0.3, 0.5, 0.2]);
+ * const parts = ground.parts(); // 128 triangles
+ * ```
+ */
 export function sampleSurface(gb, nu, nv, fn, col, o = {}) {
   const scratch = buffers.pop() ?? { positions: [], normals: [], colors: [] };
   try {

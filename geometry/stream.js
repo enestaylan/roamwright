@@ -1,13 +1,11 @@
+/**
+ * Build river ribbons from a centreline, a water level and a sampled bed.
+ * @module
+ */
+
 import * as THREE from 'three';
 import { clamp, lerp, sstep } from '../math/scalar.js';
 
-// A stream's ribbon of water along pts, width metres wide, its surface at surface(t) and its bed's heights in bed (for how
-// fast it runs). It rises at a spring: a small pool, then a rill that widens into the stream over the first `grows` metres, so
-// the ribbon begins as a point, never as a square end. With `banks` ({ ground(x, z), reach, grows }) the ribbon is laid `reach`
-// metres wider than the stream on each side and knows how deep it lies over the ground, so its edge is where the bank rises
-// out of it; without, it is a strip of the stream's own width with soft sides. `fadeAt(x, z)`, if given, is how much of the
-// ribbon shows at a point of its line (0 to 1): where it runs on into still water drawn beside it (a lake's sheet), the two
-// cross over, so it has no square end there either.
 const DEEP = 8, // the depth the shader takes for water that knows no bed
   FAR = 99, // how far from a spring's eye water is that has none
   MURK = 7, // a stream's water hides its bed this many times sooner than the lake's
@@ -34,6 +32,30 @@ function shutBeyondBanks(bank, first) {
     }
   }
 }
+/**
+ * Build an indexed ribbon from spring to mouth. The ribbon starts at a point
+ * and widens downstream. When terrain is supplied, the water shader clips the
+ * ribbon at the first raised bank on each side of a cross-section.
+ * @param {[number, number][]} pts - At least two downstream-ordered [x, z] points in metres.
+ * @param {number} width - Full stream width in metres once the channel has widened.
+ * @param {(t: number) => number} surface - Water elevation in metres at `t = i / (pts.length - 1)`.
+ *   Samples are spaced by point index. Unevenly spaced points get equal increments in t.
+ * @param {ArrayLike<number>} bed - One bed elevation per point. The local drop drives the flow shader.
+ * @param {{ground: (x: number, z: number) => number, reach: number, grows?: number} | null} [banks] -
+ *   Terrain elevation sampler, extra reach on each bank in metres and optional downstream widening distance.
+ * @param {((x: number, z: number) => number) | null} [fadeAt] - Visible share (0–1) along the centreline,
+ *   useful where the stream meets a lake.
+ * @returns An owned BufferGeometry with position, flow, current and bank attributes for the stream material.
+ * @example
+ * ```js
+ * import { streamGeometry } from 'roamwright/geometry/stream.js';
+ *
+ * const channel = [[0, 0], [1, 8], [3, 16]];
+ * const water = streamGeometry(channel, 4, t => 3 - t, [2.4, 1.8, 1.2]);
+ * // Pass water to a mesh using the stream material, then dispose it on removal.
+ * water.dispose();
+ * ```
+ */
 export function streamGeometry(pts, width, surface, bed, banks = null, fadeAt = null) {
   const n = pts.length,
     across = ACROSS.length,

@@ -1,5 +1,39 @@
+/**
+ * Advance regional rain, dampness, dust and dawn mist for a world clock.
+ * @module
+ */
+
 import { sstep } from '../math/scalar.js';
 
+/**
+ * Create an independent weather clock. The returned function advances the region’s
+ * spell timer and writes atmospheric intensities into a caller-owned state object.
+ * Keep that object between frames so cloud cover can build before rain and the
+ * ground can dry after it stops. Changing the region identity restarts its timer.
+ * @param {object} [options] - Weather timing and random source.
+ * @param {() => number} [options.random] - Random stream in [0, 1). Supply a seeded generator for repeatable spell timing.
+ * @param {number} [options.dawn] - Time of peak morning mist as a fraction of the day.
+ * @param {number} [options.mistWidth] - Width of the dawn mist curve in fractions of a day.
+ * @param {number} [options.fullReach] - Fraction of a local spell’s radius inside which it has full strength.
+ * @param {number} [options.dustRise] - Seconds for storm dust to rise from zero to full strength.
+ * @param {number} [options.dustSettle] - Seconds for storm dust to settle from full strength to zero.
+ * @example
+ * ```js
+ * import { mulberry32 } from 'roamwright';
+ * import { createWeather } from 'roamwright/motion/weather.js';
+ * import { createWind } from 'roamwright/motion/wind.js';
+ *
+ * const updateWeather = createWeather({ random: mulberry32(42) });
+ * const wind = createWind({ speed: 3 });
+ * const state = { wet: 0, rain: 0, damp: 0, gust: 0, dust: 0, dustStorm: 0, mist: 0, storm: -1 };
+ * const coast = { spell: 'squall', every: [30, 60], lasts: [15, 25], mist: true };
+ * function frame(elapsedSeconds, deltaSeconds, dayFraction) {
+ *   updateWeather(state, deltaSeconds, dayFraction, { region: 'coast', weather: coast, x: 0, z: 0 });
+ *   wind.update(elapsedSeconds, state.gust);
+ * }
+ * frame(1, 1, 0.25);
+ * ```
+ */
 export function createWeather({
   random = Math.random,
   dawn: DAWN = 0.25,
@@ -13,7 +47,22 @@ export function createWeather({
   // v moved toward goal by at most step.
   const toward = (v, goal, step) => (v < goal ? Math.min(goal, v + step) : Math.max(goal, v - step));
 
-  // Each frame: env's weather (wet, rain, damp, gust, dust, mist) moved on by dt seconds; hour is the clock, 0 to 1.
+  /**
+   * @param {{wet: number, rain: number, damp: number, gust: number, dust: number, dustStorm: number, mist: number, storm?: number}} env -
+   *   Mutable intensities. Use storm = -1 for the region’s automatic cycle, or 0–1 to override the spell strength.
+   * @param {number} dt - Seconds since the previous update.
+   * @param {number} hour - Fraction of one day, from 0 to 1.
+   * @param {object} location - Observer and region for this frame.
+   * @param {unknown} location.region - Stable identity for the current region.
+   * @param {{spell?: string, every?: [number, number], lasts?: [number, number], mist?: boolean, reach?: number, x?: number, z?: number} | null} location.weather -
+   *   Set spell to rain, squall or dust and supply minimum/maximum seconds in every and lasts.
+   *   For a local spell, set its centre (x, z) and reach in world units. Null clears the weather.
+   * @param {number} location.x - Observer’s world X.
+   * @param {number} location.z - Observer’s world Z.
+   * @param {boolean} [location.running] - Advance the spell timer while true.
+   * @param {boolean} [location.quiet] - Suppress spells and dawn mist while true.
+   * @param {number} [location.ambientDust] - Local background dust intensity.
+   */
   function updateWeather(env, dt, hour, { region, weather: w, x, z, running = true, quiet = false, ambientDust = 0 }) {
     if (!w) {
       env.wet = env.rain = env.damp = env.gust = env.dustStorm = env.mist = 0;

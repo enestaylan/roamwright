@@ -1,6 +1,14 @@
+/**
+ * Measure signed distance to a land outline directly or bake distances for repeated shoreline queries.
+ * @module
+ */
+
 import { clamp, lerp } from '../math/scalar.js';
 
-// The edges of a closed outline, as the distance to it is worked out from them.
+/**
+ * Prepare edges once for repeated {@link outlineDistance} queries. The last point connects to the first.
+ * @param {[number, number][]} outline - Ordered [x, z] vertices of a closed polygon in metres.
+ */
 export const outlineEdges = outline =>
   outline.map(([x, z], i) => {
     const [ex, ez] = outline[(i + 1) % outline.length],
@@ -8,7 +16,13 @@ export const outlineEdges = outline =>
       dz = ez - z;
     return { x, z, dx, dz, ez, inv: 1 / (dx * dx + dz * dz || 1) };
   });
-// The signed distance from (x, z) to an outline's edges: positive inside it.
+/**
+ * Measure distance to the closest point on a polygon edge. The sign is positive
+ * inland, zero on the boundary and negative outside, for either winding order.
+ * @param {ReturnType<typeof outlineEdges>} edges - Precomputed edges of one land outline.
+ * @param {number} x - World X in metres.
+ * @param {number} z - World Z in metres.
+ */
 export function outlineDistance(edges, x, z) {
   let inside = false,
     best = Infinity;
@@ -22,6 +36,22 @@ export function outlineDistance(edges, x, z) {
   return Math.sqrt(best) * (inside ? 1 : -1);
 }
 
+/**
+ * Cache shoreline distances for frequent terrain or material queries. Allocate a
+ * square grid, bake one or more land outlines, then sample it by world position.
+ * Baking keeps the largest signed distance across all outlines at each grid point.
+ * Queries interpolate four neighbouring samples and clamp to the grid near its edge.
+ * @example
+ * ```js
+ * import { createShoreGrid } from 'roamwright/geometry/shore-grid.js';
+ *
+ * const shore = createShoreGrid();
+ * shore.layOutShore(-8, -8, 1, 17);
+ * shore.bakeShore([[[-4, -4], [4, -4], [4, 4], [-4, 4]]]);
+ * const inland = shore.shoreDistance(0, 0); // 4 metres
+ * const offshore = shore.shoreDistance(6, 0); // -2 metres
+ * ```
+ */
 export function createShoreGrid() {
   let grid = null, // the distances, n to a side
     n = 0,
@@ -29,7 +59,13 @@ export function createShoreGrid() {
     z0 = 0,
     step = 0; // metres from one point of the grid to the next
 
-  // Lays the grid out empty over the square from (x0, z0): n points a side, `step` metres apart.
+  /**
+   * Replace any existing grid with zeroed storage.
+   * @param {number} cornerX - Smallest sample X in metres.
+   * @param {number} cornerZ - Smallest sample Z in metres.
+   * @param {number} spacing - Positive distance between samples in metres.
+   * @param {number} points - Samples along each side, at least two.
+   */
   function layOutShore(cornerX, cornerZ, spacing, points) {
     x0 = cornerX;
     z0 = cornerZ;
@@ -37,9 +73,12 @@ export function createShoreGrid() {
     n = points;
     grid = new Float32Array(n * n);
   }
-  // The grid's distances: what a bake fills and a later visit reads back (core/kept.js).
+  /**
+   * Restore a matching cached grid by writing into this buffer after layout.
+   * @returns {Float32Array | null} The live row-major distances, or null before layout.
+   */
   const shoreGrid = () => grid;
-  // Fills the grid from the land's outlines, each a closed line of [x, z] points.
+  /** @param {[number, number][][]} outlines - Land polygons to rasterize into the allocated grid. */
   function bakeShore(outlines) {
     const edges = outlines.map(outlineEdges);
     for (let j = 0; j < n; j++)
@@ -51,7 +90,11 @@ export function createShoreGrid() {
         grid[j * n + i] = d;
       }
   }
-  // The signed distance from (x, z) to the shore, in metres: positive inland.
+  /**
+   * @param {number} x - World X in metres.
+   * @param {number} z - World Z in metres.
+   * @returns {number} Interpolated signed distance in metres, positive inland.
+   */
   function shoreDistance(x, z) {
     const u = clamp((x - x0) / step, 0, n - 1.001),
       v = clamp((z - z0) / step, 0, n - 1.001),

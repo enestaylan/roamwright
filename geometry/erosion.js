@@ -1,3 +1,8 @@
+/**
+ * Shape a square terrain heightfield with seeded hydraulic erosion while protecting selected vertices.
+ * @module
+ */
+
 import { lerp, sstep } from '../math/scalar.js';
 
 // Weights in a circular erosion brush sum to one, including a fractional radius.
@@ -17,8 +22,26 @@ function erosionBrush(radius) {
   return cells;
 }
 
-// Erode a square vertex grid in place, using a per-vertex influence mask in [0,1].
-// rng supplies reproducible samples in [0,1); all distances are in grid cells.
+/**
+ * Move sediment downhill by simulating droplets. The height buffer is modified
+ * in place. Reuse the original heights and reset the random generator to reproduce a bake.
+ * @param {Float32Array | Float64Array | number[]} heights - Row-major elevations, indexed by row × width + column.
+ * @param {number} width - Vertices per side of the square grid, at least four.
+ * @param {ArrayLike<number>} mask - One influence per vertex. Zero preserves the starting elevation, one allows full erosion.
+ * @param {() => number} rng - Random stream in [0, 1), such as `mulberry32(seed)`.
+ * @param {object} options - Droplet simulation settings.
+ * @param {number} options.drops - Number of droplets to attempt.
+ * @param {number} options.lifetime - Maximum steps per droplet. Each step travels one grid cell.
+ * @param {number} options.inertia - Fraction of the previous direction retained in the next step.
+ * @param {number} options.capacityFactor - Scales the sediment load supported by downhill speed and water volume.
+ * @param {number} options.minCapacity - Lower bound on the supported sediment load.
+ * @param {number} options.erosionRate - Fraction of spare capacity to erode per step, capped by the local fall.
+ * @param {number} options.depositRate - Fraction of excess sediment deposited on a downhill step.
+ * @param {number} options.evaporation - Fraction of remaining water lost per step.
+ * @param {number} options.gravity - Converts the change in elevation into a change in squared speed.
+ * @param {number} options.radius - Positive erosion brush radius in grid cells.
+ * @param {number} options.maxChange - Maximum absolute deviation from each vertex’s initial elevation, in height units.
+ */
 export function erodeHeightfield(heights, width, mask, rng, options) {
   const { drops, lifetime, inertia, capacityFactor, minCapacity, erosionRate,
     depositRate, evaporation, gravity, radius, maxChange } = options;
