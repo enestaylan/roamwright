@@ -39,12 +39,20 @@ export async function run(canvas) {
   instances.setMatrixAt(0,new THREE.Matrix4().makeTranslation(2,1,0));
   scene.add(light,instances);
   const warm=createShaderWarmup({renderer,scene,camera:new THREE.PerspectiveCamera()});
+  const queried=createHeightProbe(renderer,scene,{size:16,above:12,below:2,layer:4,queryResult:true});
   try {
     await probe.warm(scene,warm.warmStandIns);
     const prepared=renderer.info.programs.length;
     const [hit,miss]=await Promise.all([probe.measure(0,0,0,4),probe.measure(20,0,0,1)]);
     if(prepared!==2 || renderer.info.programs.length!==prepared)throw Error('first probe draw linked an unprepared depth program');
     if(Math.abs(hit-2)>.01||miss!==0||box.layers.mask!==1||renderer.getRenderTarget()!==null||scene.overrideMaterial)throw Error('height/state: '+[hit,miss]);
+    await queried.warm(scene,warm.warmStandIns);
+    const queryPrograms=renderer.info.programs.length;
+    const positions=[[0,0,0,4],[20,0,0,1],[2,0,0,1],[-1.05,-2.5,.67,2]];
+    const expected=await Promise.all(positions.map(p=>probe.measure(...p)));
+    const values=await Promise.all(positions.map(p=>queried.measure(...p)));
+    if(JSON.stringify(values)!==JSON.stringify(expected))throw Error('query vs pixel depth: '+[values,expected]);
+    if(renderer.info.programs.length!==queryPrograms)throw Error('unprepared reduction shader');
     return 'PASS persisted grid, version isolation, event order, overlapping height queries';
-  }finally{warm.dispose();probe.dispose();box.geometry.dispose();box.material.dispose();renderer.dispose();}
+  }finally{warm.dispose();queried.dispose();probe.dispose();box.geometry.dispose();box.material.dispose();renderer.dispose();}
 }

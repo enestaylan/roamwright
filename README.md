@@ -98,6 +98,8 @@ Use `createFrameBudget` from `runtime/frame-budget.js` for optional synchronous 
 
 `createGroundLookahead` from `motion/ground-lookahead.js` predicts a horizontal position from samples in seconds, with a capped lead and a reset after jumps or pauses. `joinParts` from `geometry/part-ranges.js` assembles attribute buffers from ordered position ranges.
 
+For small roof or terrain probes, pass `queryResult: true` to `createHeightProbe` to return the packed minimum depth using asynchronous WebGL 2 occlusion queries. Tiles up to 32 × 32 use this path. The default pixel readback is available for larger targets and renderers where readback is inexpensive.
+
 Pass a `revisions` object mapping grid names to input-version strings to `createGridCache` to reuse compatible grids across builds. Saving a grid retires its previous revision. Names without a revision bypass storage. The existing `build` string versions the whole cache when `revisions` is omitted.
 
 Pass an optional world-space `initialPosition` to `terrainChunks` to create the terrain at its first viewing distance. Subsequent updates follow the camera.
