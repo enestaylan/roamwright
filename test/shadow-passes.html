@@ -145,6 +145,15 @@ try {
   far.update(.1);
   pixels();
   check(far.light.shadow.map && !far.light.shadow.needsUpdate,'far map not drawn');
+  // Move the near map away from the receivers so this comparison measures the distant cascade alone.
+  const nearCamera=sun.shadow.camera;
+  nearCamera.left=30; nearCamera.right=40;
+  nearCamera.updateProjectionMatrix();
+  const distantLit=pixels();
+  far.light.shadow.intensity=0;
+  check(pixels().some((v,i)=>v!==distantLit[i]),'far cascade did not shadow the receivers');
+  far.light.shadow.intensity=1;
+  check(pixels().every((v,i)=>v===distantLit[i]),'distant shadow filter changed between identical frames');
   const warmup=createShaderWarmup({renderer,scene,camera});
   const sky=createSkyOcclusion({renderer,scene,camera,uniforms:shader.uniforms,
     config:{half:16,size:96,step:1,every:1,above:20,depth:40},samples:[.5,1,3,6],

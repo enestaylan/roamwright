@@ -14,12 +14,12 @@ export function installFarShadowShader({nearDepth: NEAR_DEPTH, farDepth: FAR_DEP
       c.z += fs.shadowBias;
       gap = 0.0;
       if ( any( lessThan( c, vec3( 0.0 ) ) ) || any( greaterThan( c, vec3( 1.0 ) ) ) ) return 1.0;
-      vec2 t = c.xy * fs.shadowMapSize - 0.5, b = floor( t ), k = t - b, px = 1.0 / fs.shadowMapSize, uv = ( b + 0.5 ) * px;
+      vec2 t = c.xy * fs.shadowMapSize - 0.5, b = floor( t ), k = t - b, uv = ( b + 0.5 ) * ( 1.0 / fs.shadowMapSize );
       vec4 d = vec4(
         unpackRGBAToDepth( texture2D( directionalShadowMap[ 1 ], uv ) ),
-        unpackRGBAToDepth( texture2D( directionalShadowMap[ 1 ], uv + vec2( px.x, 0.0 ) ) ),
-        unpackRGBAToDepth( texture2D( directionalShadowMap[ 1 ], uv + vec2( 0.0, px.y ) ) ),
-        unpackRGBAToDepth( texture2D( directionalShadowMap[ 1 ], uv + px ) ) );
+        unpackRGBAToDepth( textureOffset( directionalShadowMap[ 1 ], uv, ivec2( 1, 0 ) ) ),
+        unpackRGBAToDepth( textureOffset( directionalShadowMap[ 1 ], uv, ivec2( 0, 1 ) ) ),
+        unpackRGBAToDepth( textureOffset( directionalShadowMap[ 1 ], uv, ivec2( 1, 1 ) ) ) );
       vec4 lit = step( vec4( c.z ), d );
       gap = ( c.z - min( min( d.x, d.y ), min( d.z, d.w ) ) ) * ${FAR_DEPTH.toFixed(1)};
       return mix( 1.0, mix( mix( lit.x, lit.y, k.x ), mix( lit.z, lit.w, k.x ), k.y ), fs.shadowIntensity );
