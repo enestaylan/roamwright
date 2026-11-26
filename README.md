@@ -74,52 +74,15 @@ renderer.render(scene, camera);
 
 ## Modules
 
-Import any module from `roamwright/<folder>/<name>.js`. Each area below names its main modules first. Its other modules are listed after them. See each module’s source for its parameters, and the [tests](test) and browser fixtures for complete setups.
+Import modules by path, for example `roamwright/geometry/builder.js`.
 
-For perspective level of detail, use `detailLens(camera, referenceFov)` from `rendering/detail-range.js` once per view. Pass its magnification to `withinDetailRange(distanceSquared, wasNear, magnification, [enter, leave])`. Distances are in world units at the reference field of view. Keep each object’s previous boolean result. An undefined first result selects at the midpoint. The same module exports the three-band `detailLevel` selector for crowds.
-
-For a phase-driven pedestrian or baked clip, call `createBipedCycle({ rig, foot })` from `motion/biped-cycle.js`. Supply thigh and shin lengths, ankle height and heel and ball offsets in `rig`. Set heel-strike and push-off angles (radians) and the fractions of stance when the foot settles flat and starts to rise (`flatAt`, `riseAt`) in `foot`. The returned sampler takes phase in cycles, stride length, stance fraction, swing clearance, ground grade, requested hip height, optional foot-roll weight and optional standing stagger. It returns a reachable hip height and local thigh, knee and foot angles for both legs. Consume or copy the result before sampling another figure.
-
-For frame diagnostics, `createFramePacingMonitor({ minimumFps, windowMs, windows, onSlow })` from `runtime/frame-pacing.js` accepts displayed frame intervals in milliseconds via `sample(ms)`. The callback receives the average FPS and duration of the first consecutive slow windows. Call `reset()` on a pause or view change.
-
-For terrain queries, `packCellMask(width, height, includesIndex)` from `geometry/cell-mask.js` packs row-major membership into a transferable byte array (`mask.bits`). Read it with `cellIsSet(mask, column, row)`. Out-of-bounds coordinates return false.
-
-For wind-driven rain, `createRainStreaks({ capacity, windUniforms, random })` from `rendering/rain-streaks.js` takes the uniforms from `createWind()` and an optional random source. Add its `mesh` to the scene, set its `color`, and call `update(eyePosition, elapsedSeconds, intensity, density)` each frame. Intensity and density range from zero to one. Dispose the mesh’s geometry and material when finished. [Browser fixture](test/rain-streaks.js).
-
-| Area | Main modules | Also includes |
-| --- | --- | --- |
-| Foundations | `math/noise.js`, `math/random.js`, `math/curve.js` and `math/color.js` provide seeded noise, resumable random streams, spline samples and colour conversion. They also run in workers. | `math/scalar.js`, `math/cell-edge.js`, `math/periodic.js` |
-| Geometry | `geometry/builder.js` and `geometry/primitives.js` merge primitives into typed buffers or a Three.js mesh. `geometry/sculpt.js` builds lofted, skinned shapes. `geometry/instances.js` and `rendering/piece-batch.js` draw repeated or changing pieces. | `geometry/sampled-surface.js`, `geometry/placement.js`, `geometry/creased-sheet.js`, `geometry/sagging-tube.js`, `rendering/cell-lod.js` |
-| Terrain | `geometry/terrain-chunks.js` refines a height grid in mesh batches. `geometry/heightfield.js` samples and refines it, `math/mountain-ranges.js` raises relief and `geometry/strata-field.js` plans rock outcrops. | `geometry/terrain-extension.js`, `geometry/erosion.js`, `geometry/strata-tiles.js`, `geometry/scatter-grid.js`, `geometry/outline-grid.js`, `geometry/path-field.js`, `math/rock-texture.js`, `rendering/terrain-rock.js`, `rendering/strata-material.js`, `rendering/talus.js`, `rendering/road-surface.js` |
-| Water | `rendering/water-material.js` shades lakes, streams and rivers. `geometry/stream.js` builds stream ribbons and `geometry/shore-grid.js` measures distance to shorelines. | `rendering/sea-shaders.js`, `rendering/wakes.js`, `rendering/stream-flow.js`, `rendering/rain-rings.js`, `rendering/planar-reflection.js` |
-| Sky and weather | `rendering/sky.js` combines `rendering/cloud-field.js` and `rendering/cloud-dome.js` into a volumetric cloud sky ([fixture](test/atmosphere.js)). `motion/weather.js` and `motion/wind.js` drive rain, dust, squalls and gusts. | `math/cloud-textures.js`, `rendering/daylight.js`, `rendering/height-haze.js`, `rendering/particles.js`, `math/particle-noise.js`, `rendering/particle-emitters.js`, `rendering/flocks.js` |
-| Characters | `geometry/head-shape.js` builds parametric heads, `geometry/hair-shell.js` hair and `rendering/garment-material.js` cloth, plate and mail ([fixture](test/garment-material.js)). `motion/biped-stride.js` and `motion/quadruped.js` animate gaits, and `rendering/crowd-skinning.js` draws instanced skinned crowds. | `geometry/ear.js`, `geometry/face-grid.js`, `geometry/head-profile.js`, `geometry/hair-locks.js`, `geometry/hair-gathers.js`, `geometry/hair-patch.js`, `geometry/hair-tags.js`, `geometry/garment-tags.js`, `math/cloth-textures.js`, `rendering/hair-strands.js`, `motion/arm-reach.js`, `motion/crowd-alarms.js`, `motion/crowd-routine.js` |
-| Labels | `createLabelRange(near, far)` fades labels by world distance. Use a selection per group to keep the nearest visible member as its label anchor. The screen-space layout in `rendering/label-layout.js` accepts candidate boxes in priority order, supports bounded upward stacking, and checks caller-provided obstacles. | `rendering/label-range.js`, [example and checks](test/label-range.test.js) |
-| Surfaces | `rendering/surface-projection.js` projects textures in metres onto standard materials and `rendering/surface-light.js` adds wetness and backlighting ([fixture](test/projected-surface.js)). `math/surface-textures.js` fills seeded, tileable masonry, plaster, roof tile, rock, plank, foliage, ground, road, brick and ice textures, in a worker if wanted. | `rendering/interior-mapping.js`, `rendering/crust.js`, `rendering/low-light.js`, `rendering/material-lod.js`, `rendering/textures.js`, `rendering/texture-fills.js` |
-| Lights and shadows | `rendering/far-shadow.js` pairs near and far directional shadows, `rendering/static-point-shadow.js` caches point-light shadows and `rendering/sky-occlusion.js` darkens covered areas. | `rendering/shadow-depth.js`, `rendering/shadow-alignment.js`, `rendering/local-lights.js`, `rendering/caster-motion.js`, `rendering/still-casters.js`, `rendering/contact-shadows.js`, `rendering/light-points.js`, `rendering/light-shafts.js`, `rendering/glow-lines.js`, `rendering/glow-shell.js`, `rendering/light-budget.js`, `rendering/stage-lights.js` |
-| Rendering pipeline | `rendering/context.js` sets up WebGL2, a scene and a camera. `rendering/post.js` and `rendering/taa.js` compose HDR passes and temporal antialiasing, and `rendering/shader-warmup.js` compiles programs ahead of use. | `rendering/dof.js`, `rendering/post-shaders.js`, `rendering/eye-adapt.js`, `rendering/viewport.js`, `rendering/world-matrices.js`, `rendering/compilation-schedule.js`, `rendering/height-probe.js` |
-| Player and world | `motion/spaces.js` and `motion/player.js` move a first-person controller over terrain, decks and colliders. | `motion/instance-sight.js`, `motion/daily-clock.js`, `runtime/spatial-audio.js` |
-| Runtime | `runtime/pool.js` and `runtime/worker.js` run named jobs on module workers. `runtime/quality-fit.js` adapts quality to measured GPU time. | `runtime/device-quality.js`, `runtime/quality-store.js`, `runtime/gpu-timing.js`, `runtime/first-use.js`, `runtime/hand-over.js`, `runtime/seen.js`, `runtime/frame-yield.js`, `runtime/grid-cache.js`, `runtime/grid-rows.js`, `runtime/events.js`, `runtime/diagnostic-log.js`, `runtime/module-preload.js`, `runtime/search.js` |
-
-For demand-driven parallel jobs, pass a synchronous `createWorker` factory to `createPool`. A single job starts one worker. Overlapping jobs grow the pool up to `workerCapacity()`, which reserves one browser-reported logical processor for the main thread and falls back to one worker when the count is unavailable. Applications can override `maxWorkers`. A broadcast starts the whole available pool so later jobs see the broadcast state. Pass `{ activeOnly: true }` to `runOnEach` when releasing data held by current workers. Idle workers terminate together; a new burst grows from one again.
-
-Use `circleClearances(centres, gapFraction = 0)` from `roamwright/math/circle-clearances.js` when laying out circular footprints around fixed x-z positions. It returns one radius limit per input. A value of 0.1 reserves a tenth of the distance between neighbouring centres as a gap. Cap each result by the space available or the desired radius.
-
-Build static bed furnishings with `geometry/bedding.js`. All three functions append triangles to the supplied geometry builder. Coordinates and dimensions are in world units and colours are linear RGB triples.
-
-- `bedLinen(builder, x, y, z, { width, length, tick, cover, drop, ticking, coverTone, linen, pillows, yaw })` places a mattress of thickness `tick` below the supplied top centre, a cover of length `cover` with a hanging hem of depth `drop`, and one or more pillows at the head. Yaw is in radians.
-- `linenCase(builder, x, y, z, width, height, length, tone, yaw = 0)` builds a seamed cushion above its base centre.
-- `bedCanopy(builder, x, y, z, width, length, tone)` hangs a two-sided cloth canopy from level side rails, with a gathered valance at the foot.
-
-Use `createContactTransition({ duration, pose, transfer })` from `motion/contact-transition.js` for a placement or handoff. Call the returned function with the frame delta in seconds. It drives the supplied pose from rest through contact and back, and invokes the transfer once at full reach, including when a frame spans the contact moment. The pose callback receives the contact weight, approach progress and normalized phase. Drop the transition when its action is cancelled.
-
-For a thrown prop, `sampleBallisticArc(out, from, to, phase, duration, gravity = 9.81)` in `motion/ballistic-arc.js` samples a gravity arc into an existing vector. The endpoints may have different heights and the destination can follow a moving hand.
-
-Use `createWithdrawableTask(work)` from `runtime/withdrawable-task.js` for optional detail. Concurrent calls to `request(input, pinned = false)` share the first input and promise. A pinned caller keeps that attempt alive. `withdraw()` aborts an optional attempt. A replacement waits for its predecessor to finish cleanup. The task passes `work(input, signal)` an AbortSignal. Successful results belong to the caller.
-
-Pass the signal to `paced(steps, signal)`, `drain(steps, signal)` and `handToCard(roots, signal)` in the upload scheduler. Cancelled steps close their iterator and temporary visibility and draw ranges are restored. For incremental shader preparation use `warmShaders(root, {signal})` and forward the fourth argument of your `beginCompiles` callback to `compiledInTurn(root, camera, scene, target, signal)`. Signalled warmups await compilation and propagate failures. Pass a stable object as `retryKey` when a retry builds a fresh root, so programs linked by the interrupted preparation receive their first use. The first-use queue accepts the signal as its second argument. Already submitted GPU work may finish.
-
-Use `disposeMeshRoots(roots, sharedGeometries)` from `rendering/dispose-meshes.js` to detach a private subtree and dispose its geometry, piece batches and instance buffers. List borrowed geometries in a Set or WeakSet. Materials remain owned by the application.
+| Area | Main modules |
+| --- | --- |
+| Seeded generation | `math/noise.js`, `math/random.js` |
+| Geometry and terrain | `geometry/builder.js`, `geometry/heightfield.js`, `geometry/terrain-chunks.js` |
+| Rendering | `rendering/context.js`, `rendering/sky.js`, `rendering/water-material.js` |
+| Movement | `motion/player.js`, `motion/biped-stride.js` |
+| Background jobs | `runtime/pool.js`, `runtime/worker.js` |
 
 ## Contributing and license
 
