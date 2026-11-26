@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { PointBuckets } from 'roamwright/geometry/point-buckets.js';
+import { createDeckSurface } from 'roamwright/motion/deck-surface.js';
+import { rectangleCorners, rectanglesOverlap } from 'roamwright/math/rectangles.js';
 import { cutBuilderCells } from 'roamwright/geometry/builder-cells.js';
 import { createBuilderFrame } from 'roamwright/geometry/builder-frame.js';
 import { fillRowBands } from 'roamwright/runtime/grid-rows.js';
@@ -36,3 +39,10 @@ const updateCover = createScatterGrid({
 });
 updateCover(0, 0);
 assert.equal(accepted, 16);
+
+const points = new PointBuckets([{ x: 1, z: -1 }], 4);
+assert.equal(points.find(1, -1, 0, () => true).x, 1);
+const corners = rectangleCorners(1, -1, 2, 3, 0.4);
+assert.ok(rectanglesOverlap(corners, corners));
+const floor = createDeckSurface([{x: 1, z: -1, y: 4, c: 1, s: 0, hx: 2, hz: 1}], () => 0, -8, -8, 16, 4);
+assert.equal(floor(1, -1), 4);

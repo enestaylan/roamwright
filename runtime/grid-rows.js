@@ -20,8 +20,12 @@ async function bakeRowBands(rows, bandSize, bake, yieldTurn) {
   }
 }
 
-// Submit every band synchronously so later work can be queued behind it. Release each
-// result as soon as it lands. On failure, drain outstanding writers before handing back the grids.
+/**
+ * Fill the half-open interval [from, to) in typed destination grids of equal row count.
+ * request(start, end) returns one cutRows result or a promise for it. Requests are
+ * submitted synchronously in row order. Completed cuts are installed and released
+ * immediately. Rejection waits for all outstanding writes before returning ownership.
+ */
 async function fillRowBands(grids, rows, bandSize, request, from = 0, to = rows) {
   checkBandSize(bandSize);
   if (!Number.isSafeInteger(rows) || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) ||
