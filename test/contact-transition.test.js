@@ -23,3 +23,11 @@ test('a skipped hold still reaches the target before transfer', () => {
   assert.throws(() => createContactTransition({ duration: 0 }), RangeError);
   assert.throws(() => createContactTransition({ duration: 1, arriveAt: 0.7 }), RangeError);
 });
+
+test('pose receives the normalized phase, including contact crossed by a long frame', () => {
+  const phases = [];
+  const step = createContactTransition({ duration: 2, pose: (_weight, _approach, phase) => phases.push(phase), transfer() {} });
+  step(0.5);
+  step(1.5);
+  assert.deepEqual(phases, [0.25, 0.55, 1]);
+});

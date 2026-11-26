@@ -99,7 +99,9 @@ Build static bed furnishings with `geometry/bedding.js`. All three functions app
 - `linenCase(builder, x, y, z, width, height, length, tone, yaw = 0)` builds a seamed cushion above its base centre.
 - `bedCanopy(builder, x, y, z, width, length, tone)` hangs a two-sided cloth canopy from level side rails, with a gathered valance at the foot.
 
-Use `createContactTransition({ duration, pose, transfer })` from `motion/contact-transition.js` for a placement or handoff. Call the returned function with the frame delta in seconds. It drives the supplied pose from rest through contact and back, and invokes the transfer once at full reach, including when a frame spans the contact moment. Drop the transition when its action is cancelled.
+Use `createContactTransition({ duration, pose, transfer })` from `motion/contact-transition.js` for a placement or handoff. Call the returned function with the frame delta in seconds. It drives the supplied pose from rest through contact and back, and invokes the transfer once at full reach, including when a frame spans the contact moment. The pose callback receives the contact weight, approach progress and normalized phase. Drop the transition when its action is cancelled.
+
+For a thrown prop, `sampleBallisticArc(out, from, to, phase, duration, gravity = 9.81)` in `motion/ballistic-arc.js` samples a gravity arc into an existing vector. The endpoints may have different heights and the destination can follow a moving hand.
 
 ## Contributing and license
 
