@@ -12,7 +12,7 @@ import { box, TRS } from './primitives.js';
 //  (geometryOf), and the primitives it places
 // ════════════════════════════════════════════════════════════════════════
 const _n3 = new THREE.Matrix3(),
-  _v = new THREE.Vector3(),
+  scratchVertex = new THREE.Vector3(),
   _m5 = new THREE.Matrix4();
 // Three.js calls this upload callback with the attribute as its receiver. Static
 // geometry can release its CPU copy once the GPU owns the buffer.
@@ -54,8 +54,8 @@ function sphereOf(points) {
     const dx = points[i] - cx,
       dy = points[i + 1] - cy,
       dz = points[i + 2] - cz,
-      d = dx * dx + dy * dy + dz * dz;
-    if (d > far) far = d;
+      distanceSquared = dx * dx + dy * dy + dz * dz;
+    if (distanceSquared > far) far = distanceSquared;
   }
   return [cx, cy, cz, Math.sqrt(far)];
 }
@@ -64,38 +64,38 @@ function sphereOf(points) {
 // `sphere`: its bounding sphere as [x, y, z, radius], where it was worked out already, so the points are
 // not read again.
 function geometryOf(parts, sphere = null) {
-  const g = new THREE.BufferGeometry(),
+  const geometry = new THREE.BufferGeometry(),
     vertices = parts.position.length / 3;
   for (const name in ATTRIBUTES) {
     const array = parts[name],
       size = vertices ? array?.length / vertices : ATTRIBUTES[name];
-    if (array) g.setAttribute(name, new THREE.BufferAttribute(array, size, name !== 'skinIndex' && !(array instanceof Float32Array)));
+    if (array) geometry.setAttribute(name, new THREE.BufferAttribute(array, size, name !== 'skinIndex' && !(array instanceof Float32Array)));
   }
-  if (parts.index) g.setIndex(new THREE.BufferAttribute(parts.index, 1).onUpload(releaseArray));
+  if (parts.index) geometry.setIndex(new THREE.BufferAttribute(parts.index, 1).onUpload(releaseArray));
   const points = parts.position;
   if (!sphere && points instanceof Float32Array && points.length) sphere = sphereOf(points);
-  if (sphere) g.boundingSphere = new THREE.Sphere(new THREE.Vector3(sphere[0], sphere[1], sphere[2]), sphere[3]);
-  else g.computeBoundingSphere();
+  if (sphere) geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(sphere[0], sphere[1], sphere[2]), sphere[3]);
+  else geometry.computeBoundingSphere();
   // Skinned meshes compute bounds on the CPU. Keep their positions, joint indices
   // and weights available, including when several meshes share the geometry.
-  for (const name in g.attributes) if (!(parts.skinIndex && SKIN_BOUNDS.includes(name))) g.attributes[name].onUpload(releaseArray);
-  return g;
+  for (const name in geometry.attributes) if (!(parts.skinIndex && SKIN_BOUNDS.includes(name))) geometry.attributes[name].onUpload(releaseArray);
+  return geometry;
 }
 // A mesh of a builder's arrays (GB.parts), as GB.mesh makes one, in `parent`
 function meshOf(parts, material, parent, shadow = true) {
-  const m = stillMesh(geometryOf(parts), material, shadow);
-  parent.add(m);
-  return m;
+  const mesh = stillMesh(geometryOf(parts), material, shadow);
+  parent.add(mesh);
+  return mesh;
 }
 // A static mesh with its local transform fixed and optional shadow casting.
 function stillMesh(geometry, material, shadow) {
-  const m = new THREE.Mesh(geometry, material);
-  m.castShadow = shadow;
-  m.receiveShadow = true;
-  m.matrixAutoUpdate = false;
-  m.updateMatrix();
-  if (shadow) markStill(m);
-  return m;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = shadow;
+  mesh.receiveShadow = true;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  if (shadow) markStill(mesh);
+  return mesh;
 }
 // Share GPU buffers and bounds while giving each instanced mesh a geometry identity
 // of its own. Three.js can then reuse the vertex bindings for each mesh.
@@ -119,17 +119,17 @@ function withRoom(array, room, used) {
   return roomier;
 }
 // A normal's or a colour's number as the byte a compact geometry stores (the typed array it goes into wraps what is out of range).
-const normalByte = n => Math.round(n * 127),
-  colourByte = c => Math.min(255, Math.round(c * 255)),
+const normalByte = component => Math.round(component * 127),
+  colourByte = component => Math.min(255, Math.round(component * 255)),
   OPAQUE = 255; // a padded colour's fourth byte: an alpha of one
 // The first `count` bytes of three to a vertex, four to a vertex: the three and then `fourth`
 function padded(bytes, count, fourth) {
   const out = new bytes.constructor((count / 3) * 4);
-  for (let i = 0, o = 0; i < count; i += 3, o += 4) {
-    out[o] = bytes[i];
-    out[o + 1] = bytes[i + 1];
-    out[o + 2] = bytes[i + 2];
-    out[o + 3] = fourth;
+  for (let i = 0, writeOffset = 0; i < count; i += 3, writeOffset += 4) {
+    out[writeOffset] = bytes[i];
+    out[writeOffset + 1] = bytes[i + 1];
+    out[writeOffset + 2] = bytes[i + 2];
+    out[writeOffset + 3] = fourth;
   }
   return out;
 }
@@ -186,48 +186,48 @@ class GB {
     this.pb.push(this.count);
     this.bounds.push(1e9, -1e9, 1e9, -1e9, 1e9, -1e9);
   }
-  add(geo, col, m) {
-    const g = geo.index ? geo.userData.ni || (geo.userData.ni = geo.toNonIndexed()) : geo;
-    const pa = g.attributes.position.array,
-      na = g.attributes.normal.array,
-      numbers = pa.length,
+  add(geometry, color, transform) {
+    const sourceGeometry = geometry.index ? geometry.userData.ni || (geometry.userData.ni = geometry.toNonIndexed()) : geometry;
+    const positionArray = sourceGeometry.attributes.position.array,
+      normalArray = sourceGeometry.attributes.normal.array,
+      numbers = positionArray.length,
       parts = !!this.pb;
     if (parts) {
       this.startPart();
       this._ra = false;
     }
-    if (this.M) m = _m5.multiplyMatrices(this.M, m);
-    _n3.getNormalMatrix(m);
+    if (this.M) transform = _m5.multiplyMatrices(this.M, transform);
+    _n3.getNormalMatrix(transform);
     this.reserve(numbers);
     // Three.js's Vector3.applyMatrix4, applyMatrix3 and normalize, written out with the matrices' numbers read once for the
     // part: the same sums in the same order, so every vertex is where Three.js would put it
-    const [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15] = m.elements,
+    const [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15] = transform.elements,
       [f0, f1, f2, f3, f4, f5, f6, f7, f8] = _n3.elements,
       flat = e3 === 0 && e7 === 0 && e11 === 0 && e15 === 1, // no perspective in the matrix: the division Three.js does is by one
       { ox, oy, oz, positions, normals, colours, normalBytes, colourBytes } = this,
-      [r, gr, b] = col,
-      rByte = colourByte(r),
-      grByte = colourByte(gr),
-      bByte = colourByte(b);
-    if (!(Math.min(r, gr, b) >= 0 && Math.max(r, gr, b) <= 1)) this.wide = true;
-    let k = this.count,
+      [red, green, blue] = color,
+      rByte = colourByte(red),
+      grByte = colourByte(green),
+      bByte = colourByte(blue);
+    if (!(Math.min(red, green, blue) >= 0 && Math.max(red, green, blue) <= 1)) this.wide = true;
+    let writeOffset = this.count,
       x0 = 1e9,
       x1 = -1e9,
       y0 = 1e9,
       y1 = -1e9,
       z0 = 1e9,
       z1 = -1e9;
-    for (let i = 0; i < numbers; i += 3, k += 3) {
-      let x = pa[i],
-        y = pa[i + 1],
-        z = pa[i + 2];
+    for (let i = 0; i < numbers; i += 3, writeOffset += 3) {
+      let x = positionArray[i],
+        y = positionArray[i + 1],
+        z = positionArray[i + 2];
       const w = flat ? 1 : 1 / (e3 * x + e7 * y + e11 * z + e15),
         px = (e0 * x + e4 * y + e8 * z + e12) * w + ox,
         py = (e1 * x + e5 * y + e9 * z + e13) * w + oy,
         pz = (e2 * x + e6 * y + e10 * z + e14) * w + oz;
-      positions[k] = px;
-      positions[k + 1] = py;
-      positions[k + 2] = pz;
+      positions[writeOffset] = px;
+      positions[writeOffset + 1] = py;
+      positions[writeOffset + 2] = pz;
       if (parts) {
         if (px < x0) x0 = px;
         if (px > x1) x1 = px;
@@ -236,9 +236,9 @@ class GB {
         if (pz < z0) z0 = pz;
         if (pz > z1) z1 = pz;
       }
-      x = na[i];
-      y = na[i + 1];
-      z = na[i + 2];
+      x = normalArray[i];
+      y = normalArray[i + 1];
+      z = normalArray[i + 2];
       let nx = f0 * x + f3 * y + f6 * z,
         ny = f1 * x + f4 * y + f7 * z,
         nz = f2 * x + f5 * y + f8 * z;
@@ -246,24 +246,24 @@ class GB {
       nx *= unit;
       ny *= unit;
       nz *= unit;
-      normals[k] = nx;
-      normals[k + 1] = ny;
-      normals[k + 2] = nz;
-      normalBytes[k] = normalByte(nx);
-      normalBytes[k + 1] = normalByte(ny);
-      normalBytes[k + 2] = normalByte(nz);
-      colours[k] = r;
-      colours[k + 1] = gr;
-      colours[k + 2] = b;
-      colourBytes[k] = rByte;
-      colourBytes[k + 1] = grByte;
-      colourBytes[k + 2] = bByte;
+      normals[writeOffset] = nx;
+      normals[writeOffset + 1] = ny;
+      normals[writeOffset + 2] = nz;
+      normalBytes[writeOffset] = normalByte(nx);
+      normalBytes[writeOffset + 1] = normalByte(ny);
+      normalBytes[writeOffset + 2] = normalByte(nz);
+      colours[writeOffset] = red;
+      colours[writeOffset + 1] = green;
+      colours[writeOffset + 2] = blue;
+      colourBytes[writeOffset] = rByte;
+      colourBytes[writeOffset + 1] = grByte;
+      colourBytes[writeOffset + 2] = bByte;
     }
-    this.count = k;
+    this.count = writeOffset;
     if (parts) this.bounds.splice(-6, 6, x0, x1, y0, y1, z0, z1);
     const vertices = numbers / 3;
     if (this.tg) {
-      const tag = this.tags?.get(col) ?? this.tv; // a builder may say what each of its colours is made of (a person's body: its metal, its leather)
+      const tag = this.tags?.get(color) ?? this.tv; // a builder may say what each of its colours is made of (a person's body: its metal, its leather)
       for (let i = 0; i < vertices; i++) this.tg.push(tag);
     }
     if (this.sk)
@@ -277,20 +277,20 @@ class GB {
     return this;
   }
   /** Append a box with its base centred at (x, y, z). Dimensions are in world units and rotations are in radians. */
-  box(x, y, z, sx, sy, sz, col, ry = 0, rx = 0, rz = 0) {
-    return this.add(box, col, TRS(x, y, z, sx, sy, sz, ry, rx, rz));
+  box(x, y, z, sx, sy, sz, color, ry = 0, rx = 0, rz = 0) {
+    return this.add(box, color, TRS(x, y, z, sx, sy, sz, ry, rx, rz));
   }
-  raw(x, y, z, nx, ny, nz, r, g, b, b1 = 0, b2 = 0, w = 1) {
+  raw(x, y, z, nx, ny, nz, red, green, blue, primaryBone = 0, secondaryBone = 0, w = 1) {
     // one vertex, optionally weighted between two bones
     if (this.M) {
-      _v.set(x, y, z).applyMatrix4(this.M);
-      x = _v.x;
-      y = _v.y;
-      z = _v.z;
-      _v.set(nx, ny, nz).transformDirection(this.M);
-      nx = _v.x;
-      ny = _v.y;
-      nz = _v.z;
+      scratchVertex.set(x, y, z).applyMatrix4(this.M);
+      x = scratchVertex.x;
+      y = scratchVertex.y;
+      z = scratchVertex.z;
+      scratchVertex.set(nx, ny, nz).transformDirection(this.M);
+      nx = scratchVertex.x;
+      ny = scratchVertex.y;
+      nz = scratchVertex.z;
     }
     if (this.pb) {
       // vertices put in one after another are one part
@@ -308,30 +308,30 @@ class GB {
       if (z > box[at + 5]) box[at + 5] = z;
     }
     this.reserve(3);
-    if (!(Math.min(r, g, b) >= 0 && Math.max(r, g, b) <= 1 && Math.max(Math.abs(nx), Math.abs(ny), Math.abs(nz)) <= 1)) this.wide = true;
-    const k = this.count,
+    if (!(Math.min(red, green, blue) >= 0 && Math.max(red, green, blue) <= 1 && Math.max(Math.abs(nx), Math.abs(ny), Math.abs(nz)) <= 1)) this.wide = true;
+    const writeOffset = this.count,
       { positions, normals, colours, normalBytes, colourBytes } = this;
-    positions[k] = x;
-    positions[k + 1] = y;
-    positions[k + 2] = z;
-    normals[k] = nx;
-    normals[k + 1] = ny;
-    normals[k + 2] = nz;
-    normalBytes[k] = normalByte(nx);
-    normalBytes[k + 1] = normalByte(ny);
-    normalBytes[k + 2] = normalByte(nz);
-    colours[k] = r;
-    colours[k + 1] = g;
-    colours[k + 2] = b;
-    colourBytes[k] = colourByte(r);
-    colourBytes[k + 1] = colourByte(g);
-    colourBytes[k + 2] = colourByte(b);
-    this.count = k + 3;
+    positions[writeOffset] = x;
+    positions[writeOffset + 1] = y;
+    positions[writeOffset + 2] = z;
+    normals[writeOffset] = nx;
+    normals[writeOffset + 1] = ny;
+    normals[writeOffset + 2] = nz;
+    normalBytes[writeOffset] = normalByte(nx);
+    normalBytes[writeOffset + 1] = normalByte(ny);
+    normalBytes[writeOffset + 2] = normalByte(nz);
+    colours[writeOffset] = red;
+    colours[writeOffset + 1] = green;
+    colours[writeOffset + 2] = blue;
+    colourBytes[writeOffset] = colourByte(red);
+    colourBytes[writeOffset + 1] = colourByte(green);
+    colourBytes[writeOffset + 2] = colourByte(blue);
+    this.count = writeOffset + 3;
     if (this.tg) this.tg.push(this.tv);
     if (this.sk) {
-      this.sk.push(b1);
+      this.sk.push(primaryBone);
       if (this.sk2) {
-        this.sk2.push(b2);
+        this.sk2.push(secondaryBone);
         this.skw.push(w);
       }
     }
@@ -382,10 +382,10 @@ class GB {
           const skip = lo - part.first,
             limit = hi - lo;
           for (let i = 0; i < part.corners.length; i += 3) {
-            const a = part.corners[i] - skip,
-              b = part.corners[i + 1] - skip,
-              c = part.corners[i + 2] - skip;
-            if (a >= 0 && a < limit && b >= 0 && b < limit && c >= 0 && c < limit) corners.push(a, b, c);
+            const firstCorner = part.corners[i] - skip,
+              secondCorner = part.corners[i + 1] - skip,
+              thirdCorner = part.corners[i + 2] - skip;
+            if (firstCorner >= 0 && firstCorner < limit && secondCorner >= 0 && secondCorner < limit && thirdCorner >= 0 && thirdCorner < limit) corners.push(firstCorner, secondCorner, thirdCorner);
           }
         }
         this.triangles(first + lo - start, corners, first + hi - start);
@@ -397,83 +397,83 @@ class GB {
   // A sculptMesh, tinted between two colours by its first channel. cut(dir) leaves out what it is true for; the triangles its edge
   // crosses are clipped where the edge runs (found by halving along each crossed side), so a hairline, beard or hood ends in a
   // smooth line instead of the sphere's triangles.
-  sculpt(m, col, col2, cut, k = 1) {
-    const { P, N, A, B, D } = m,
-      bn = this.bone,
+  sculpt(sculptedMesh, color, secondColor, cut, scale = 1) {
+    const { P: positions, N: normals, A: tintWeights, B: shades, D: directions } = sculptedMesh,
+      boneIndex = this.bone,
       ox = this.ox,
       oy = this.oy,
       oz = this.oz;
-    const emit = v => {
-      const a = v[9],
-        sh = v[10];
+    const emit = vertex => {
+      const tintWeight = vertex[9],
+        shade = vertex[10];
       this.raw(
-        v[0] * k + ox,
-        v[1] * k + oy,
-        v[2] * k + oz,
-        v[3],
-        v[4],
-        v[5],
-        (col[0] + (col2[0] - col[0]) * a) * sh,
-        (col[1] + (col2[1] - col[1]) * a) * sh,
-        (col[2] + (col2[2] - col[2]) * a) * sh,
-        bn,
-        bn,
+        vertex[0] * scale + ox,
+        vertex[1] * scale + oy,
+        vertex[2] * scale + oz,
+        vertex[3],
+        vertex[4],
+        vertex[5],
+        (color[0] + (secondColor[0] - color[0]) * tintWeight) * shade,
+        (color[1] + (secondColor[1] - color[1]) * tintWeight) * shade,
+        (color[2] + (secondColor[2] - color[2]) * tintWeight) * shade,
+        boneIndex,
+        boneIndex,
         1,
       );
     };
     const vert = i => [
-      P[i * 3],
-      P[i * 3 + 1],
-      P[i * 3 + 2],
-      N[i * 3],
-      N[i * 3 + 1],
-      N[i * 3 + 2],
-      D[i * 3],
-      D[i * 3 + 1],
-      D[i * 3 + 2],
-      A[i],
-      B[i],
+      positions[i * 3],
+      positions[i * 3 + 1],
+      positions[i * 3 + 2],
+      normals[i * 3],
+      normals[i * 3 + 1],
+      normals[i * 3 + 2],
+      directions[i * 3],
+      directions[i * 3 + 1],
+      directions[i * 3 + 2],
+      tintWeights[i],
+      shades[i],
     ];
-    const mix = (u, v, t) => {
-      const r = u.map((x, j) => x + (v[j] - x) * t),
-        l = Math.hypot(r[6], r[7], r[8]) || 1,
-        ln = Math.hypot(r[3], r[4], r[5]) || 1;
-      r[6] /= l;
-      r[7] /= l;
-      r[8] /= l;
-      r[3] /= ln;
-      r[4] /= ln;
-      r[5] /= ln;
-      return r;
+    const mix = (startVertex, endVertex, fraction) => {
+      const interpolated = startVertex.map((x, j) => x + (endVertex[j] - x) * fraction),
+        directionLength = Math.hypot(interpolated[6], interpolated[7], interpolated[8]) || 1,
+        normalLength = Math.hypot(interpolated[3], interpolated[4], interpolated[5]) || 1;
+      interpolated[6] /= directionLength;
+      interpolated[7] /= directionLength;
+      interpolated[8] /= directionLength;
+      interpolated[3] /= normalLength;
+      interpolated[4] /= normalLength;
+      interpolated[5] /= normalLength;
+      return interpolated;
     };
-    const out = v => !!cut(v[6], v[7], v[8]);
-    for (let t = 0; t < m.n; t += 3) {
-      const q = t * 3,
-        o0 = cut ? !!cut(D[q], D[q + 1], D[q + 2]) : false,
-        o1 = cut ? !!cut(D[q + 3], D[q + 4], D[q + 5]) : false,
-        o2 = cut ? !!cut(D[q + 6], D[q + 7], D[q + 8]) : false;
+    const out = vertex => !!cut(vertex[6], vertex[7], vertex[8]);
+    for (let triangleStart = 0; triangleStart < sculptedMesh.n; triangleStart += 3) {
+      const directionOffset = triangleStart * 3,
+        o0 = cut ? !!cut(directions[directionOffset], directions[directionOffset + 1], directions[directionOffset + 2]) : false,
+        o1 = cut ? !!cut(directions[directionOffset + 3], directions[directionOffset + 4], directions[directionOffset + 5]) : false,
+        o2 = cut ? !!cut(directions[directionOffset + 6], directions[directionOffset + 7], directions[directionOffset + 8]) : false;
       if (o0 && o1 && o2) continue;
       if (!o0 && !o1 && !o2) {
-        for (let i = t; i < t + 3; i++) emit(vert(i));
+        for (let i = triangleStart; i < triangleStart + 3; i++) emit(vert(i));
         continue;
       }
-      const tri = [vert(t), vert(t + 1), vert(t + 2)],
-        o = [o0, o1, o2],
+      const tri = [vert(triangleStart), vert(triangleStart + 1), vert(triangleStart + 2)],
+        outsideFlags = [o0, o1, o2],
         poly = [];
       for (let e = 0; e < 3; e++) {
-        const a = tri[e],
-          b = tri[(e + 1) % 3],
-          oa = o[e];
-        if (!oa) poly.push(a);
-        if (oa !== o[(e + 1) % 3]) {
+        const edgeStart = tri[e],
+          edgeEnd = tri[(e + 1) % 3],
+          startOutside = outsideFlags[e];
+        if (!startOutside) poly.push(edgeStart);
+        if (startOutside !== outsideFlags[(e + 1) % 3]) {
           let lo = 0,
             hi = 1;
-          for (let s = 0; s < 7; s++) {
+          for (let iteration = 0; iteration < 7; iteration++) {
             const mid = (lo + hi) / 2;
-            if (out(mix(a, b, mid)) === oa) lo = mid;
+            if (out(mix(edgeStart, edgeEnd, mid)) === startOutside) lo = mid;
             else hi = mid;
           }
-          poly.push(mix(a, b, oa ? hi : lo));
+          poly.push(mix(edgeStart, edgeEnd, startOutside ? hi : lo));
         }
       }
       for (let i = 1; i < poly.length - 1; i++) {
@@ -502,23 +502,23 @@ class GB {
     if (this.tg) parts.aTag = new Float32Array(this.tg);
     if (this.sk) {
       // rigid skinning: every vertex follows exactly one bone
-      const n = this.sk.length,
-        si = (parts.skinIndex = new Uint8Array(n * 4)),
-        sw = (parts.skinWeight = new Uint8Array(n * 4));
-      for (let i = 0; i < n; i++) {
+      const vertexCount = this.sk.length,
+        skinIndices = (parts.skinIndex = new Uint8Array(vertexCount * 4)),
+        skinWeights = (parts.skinWeight = new Uint8Array(vertexCount * 4));
+      for (let i = 0; i < vertexCount; i++) {
         const w = this.sk2 ? Math.round(this.skw[i] * 255) : 255;
-        si[i * 4] = this.sk[i];
-        sw[i * 4] = w;
+        skinIndices[i * 4] = this.sk[i];
+        skinWeights[i * 4] = w;
         if (this.sk2) {
-          si[i * 4 + 1] = this.sk2[i];
-          sw[i * 4 + 1] = 255 - w;
+          skinIndices[i * 4 + 1] = this.sk2[i];
+          skinWeights[i * 4 + 1] = 255 - w;
         }
       }
       if (this.sk3)
         for (const [i, third] of this.sk3) {
-          si[i * 4 + 2] = third[0];
-          sw[i * 4 + 2] = Math.min(255 - sw[i * 4], Math.round(third[1] * 255));
-          sw[i * 4 + 1] = 255 - sw[i * 4] - sw[i * 4 + 2];
+          skinIndices[i * 4 + 2] = third[0];
+          skinWeights[i * 4 + 2] = Math.min(255 - skinWeights[i * 4], Math.round(third[1] * 255));
+          skinWeights[i * 4 + 1] = 255 - skinWeights[i * 4] - skinWeights[i * 4 + 2];
         }
     }
     return parts;
@@ -544,11 +544,11 @@ class GB {
     this.spent = true;
   }
   /** Build a static mesh, release the builder’s backing arrays and attach the mesh to the optional parent. */
-  mesh(mat, parent, shadow = true) {
-    const m = stillMesh(this.build(), mat, shadow);
+  mesh(material, parent, shadow = true) {
+    const mesh = stillMesh(this.build(), material, shadow);
     this.release();
-    if (parent) parent.add(m);
-    return m;
+    if (parent) parent.add(mesh);
+    return mesh;
   }
 }
 

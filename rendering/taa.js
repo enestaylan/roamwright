@@ -24,13 +24,13 @@ const JITTER_POINTS = 8, // the Halton points the lens steps through, then again
   STALE = 1000; //        milliseconds between two frames that start it afresh (a page that was hidden, a long pause)
 
 const halton = (i, base) => {
-  let f = 1,
-    r = 0;
+  let digitWeight = 1,
+    sequenceValue = 0;
   for (; i > 0; i = Math.floor(i / base)) {
-    f /= base;
-    r += f * (i % base);
+    digitWeight /= base;
+    sequenceValue += digitWeight * (i % base);
   }
-  return r;
+  return sequenceValue;
 };
 // The lens's offsets, in pixels from the pixel's centre.
 const JITTER = Array.from({ length: JITTER_POINTS }, (_, i) => [halton(i + 1, 2) - 0.5, halton(i + 1, 3) - 0.5]);
@@ -64,8 +64,8 @@ export function createTemporalAA(camera) {
     for (const t of taa.history) t.dispose();
     taa.history = [];
   }
-  function sizeHistory(w, h) {
-    for (const t of taa.history) t.setSize(w, h);
+  function sizeHistory(width, height) {
+    for (const t of taa.history) t.setSize(width, height);
     taa.fresh = true;
   }
   // The running picture starts afresh on the next frame: a cut, a crossing, a new size.
@@ -80,34 +80,34 @@ export function createTemporalAA(camera) {
   }
   const historyNow = () => taa.history[taa.flip];
 
-  // Moves the lens by this frame's offset for a picture w x h pixels, after noting how the lens moved since the last frame.
-  function jitterLens(w, h) {
+  // Moves the lens by this frame's offset for a viewport of the given width and height in pixels, after noting how the lens moved since the last frame.
+  function jitterLens(width, height) {
     const now = performance.now(),
-      p = camera.projectionMatrix,
-      e = p.elements;
+      projectionMatrix = camera.projectionMatrix,
+      elements = projectionMatrix.elements;
     if (now - taa.last > STALE || camera.position.distanceToSquared(lastLens) > JUMP * JUMP) taa.fresh = true;
     taa.last = now;
     lastLens.copy(camera.position);
-    viewProj.multiplyMatrices(p, camera.matrixWorldInverse);
+    viewProj.multiplyMatrices(projectionMatrix, camera.matrixWorldInverse);
     taaUniforms.uReproj.value.copy(viewProj).invert().premultiply(lastViewProj);
     lastViewProj.copy(viewProj);
     taaUniforms.uFresh.value = taa.fresh ? 1 : 0;
     taa.fresh = false;
     const point = JITTER[taa.index++ % JITTER_POINTS], // read by index: no iterator made in a frame
-      dx = (2 * point[0]) / w,
-      dy = (2 * point[1]) / h;
+      dx = (2 * point[0]) / width,
+      dy = (2 * point[1]) / height;
     taaUniforms.uJit.value.set(dx, dy);
-    taa.saved[0] = e[8];
-    taa.saved[1] = e[9];
-    e[8] -= dx; // a point's clip x gains -dx times its view depth, which is dx once divided by w = -depth
-    e[9] -= dy;
-    camera.projectionMatrixInverse.copy(p).invert();
+    taa.saved[0] = elements[8];
+    taa.saved[1] = elements[9];
+    elements[8] -= dx; // a point's clip x gains -dx times its view depth, which is dx once divided by w = -depth
+    elements[9] -= dy;
+    camera.projectionMatrixInverse.copy(projectionMatrix).invert();
   }
   // Puts the lens back where it stands, for everything drawn after the scene.
   function steadyLens() {
-    const e = camera.projectionMatrix.elements;
-    e[8] = taa.saved[0];
-    e[9] = taa.saved[1];
+    const elements = camera.projectionMatrix.elements;
+    elements[8] = taa.saved[0];
+    elements[9] = taa.saved[1];
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   }
   // The running pictures while they exist, for the reckoning of memory.
@@ -128,14 +128,14 @@ export function createTemporalAA(camera) {
 }
 
 // Exposed light squashed into 0 to 1 and back: the running picture's form.
-const SQUASH = `/* glsl */ vec3 squash(vec3 c){ return c / (1.0 + max(c.r, max(c.g, c.b))); }
-  vec3 unsquash(vec3 c){ return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-3); }`;
+const SQUASH = `/* glsl */ vec3 squash(vec3 hdrColor){ return hdrColor / (1.0 + max(hdrColor.r, max(hdrColor.g, hdrColor.b))); }
+  vec3 unsquash(vec3 compressedColor){ return compressedColor / max(1.0 - max(compressedColor.r, max(compressedColor.g, compressedColor.b)), 1e-3); }`;
 // The final pass's part (post-shaders.js, under TAA): steady(cur, mean, spread) returns the running picture at this pixel (squashed)
 // from this frame's exposed light cur and its neighbourhood's mean and spread (standard deviation) in YCoCg. It needs the final
 // pass's tDepth and uPx.
 const TAA_FS = `/* glsl */ uniform sampler2D tHistory; uniform mat4 uReproj; uniform vec2 uJit; uniform float uFresh; ${SQUASH}
-  vec3 toYCoCg(vec3 c){ return vec3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b); }
-  vec3 fromYCoCg(vec3 y){ return vec3(y.x + y.y - y.z, y.x + y.z, y.x - y.y - y.z); }
+  vec3 toYCoCg(vec3 rgbColor){ return vec3(0.25 * rgbColor.r + 0.5 * rgbColor.g + 0.25 * rgbColor.b, 0.5 * rgbColor.r - 0.5 * rgbColor.b, -0.25 * rgbColor.r + 0.5 * rgbColor.g - 0.25 * rgbColor.b); }
+  vec3 fromYCoCg(vec3 lumaChroma){ return vec3(lumaChroma.x + lumaChroma.y - lumaChroma.z, lumaChroma.x + lumaChroma.z, lumaChroma.x - lumaChroma.y - lumaChroma.z); }
   // where this pixel's point stood in the last frame's picture: carried by the nearest of five depths round it, so an edge moves
   // with what stands in front of it
   vec2 lastUv(vec2 uv){

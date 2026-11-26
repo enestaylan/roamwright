@@ -70,7 +70,9 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
       #ifdef SEA
       ${seaParameters}
       #endif
-      vec2 wv(vec2 p, vec2 d, float f, float s, float a){ return d * (f * a * cos(dot(d, p) * f + uTime * s)); }
+      vec2 wv(vec2 waterPosition, vec2 waveDirection, float frequency, float angularSpeed, float amplitude){
+        return waveDirection * (frequency * amplitude * cos(dot(waveDirection, waterPosition) * frequency + uTime * angularSpeed));
+      }
       vec2 ripple(vec2 offset, vec2 stretch, float range, float phase) {
         vec2 q = offset * stretch;
         float d = length(q), amp = smoothstep(0.04, 0.45, d) * (1.0 - smoothstep(0.4, range, d));
@@ -220,25 +222,25 @@ export function createWaterMaterials({ depthRect, level, seaParameters, wakes, c
 }
 // Preserve the live lighting, clock and wake uniforms when specializing a water material.
 function waterVariant(material) {
-  const m = material.clone();
-  Object.assign(m.defaultAttributeValues, material.defaultAttributeValues);
-  Object.assign(m.uniforms, material.uniforms);
-  return m;
+  const variant = material.clone();
+  Object.assign(variant.defaultAttributeValues, material.defaultAttributeValues);
+  Object.assign(variant.uniforms, material.uniforms);
+  return variant;
 }
 
 /** Create a variant with its own linear RGB tint. Lighting, wave and wake uniforms stay linked to the original. */
 export function tintedWater(material, tint) {
-  const m = waterVariant(material);
-  m.uniforms.uTint = { value: new THREE.Color(...tint) };
-  return m;
+  const variant = waterVariant(material);
+  variant.uniforms.uTint = { value: new THREE.Color(...tint) };
+  return variant;
 }
 
 // Speeds are metres per second on level and steep reaches, respectively.
 export function rippledStream(material, { speed, rapidSpeed = speed }) {
-  const m = waterVariant(material);
-  m.defines = { ...m.defines, STREAM_RIFFLES: '' };
-  m.uniforms.uStreamSpeed = { value: new THREE.Vector2(speed, rapidSpeed) };
-  return m;
+  const variant = waterVariant(material);
+  variant.defines = { ...variant.defines, STREAM_RIFFLES: '' };
+  variant.uniforms.uStreamSpeed = { value: new THREE.Vector2(speed, rapidSpeed) };
+  return variant;
 }
 // A sheet of open water has no current, banks or spring of its own.
 function stillByDefault(material) {
@@ -280,19 +282,19 @@ const SHARED = [
 ];
 export function landWater(waterMat, depth, rect, level, sea = null) {
   const make = (hasDepth, own) => {
-    const m = waterMat.clone();
-    for (const k of SHARED) if (waterMat.uniforms[k]) m.uniforms[k] = waterMat.uniforms[k];
-    m.uniforms.uDepth = { value: depth };
-    m.uniforms.uDepthR.value.copy(rect);
-    m.uniforms.uLevel.value = level;
-    m.uniforms.uHasDepth.value = hasDepth;
-    m.uniforms.uRefl = { value: null };
+    const variant = waterMat.clone();
+    for (const uniformName of SHARED) if (waterMat.uniforms[uniformName]) variant.uniforms[uniformName] = waterMat.uniforms[uniformName];
+    variant.uniforms.uDepth = { value: depth };
+    variant.uniforms.uDepthR.value.copy(rect);
+    variant.uniforms.uLevel.value = level;
+    variant.uniforms.uHasDepth.value = hasDepth;
+    variant.uniforms.uRefl = { value: null };
     if (own) {
-      Object.assign(m.uniforms, own);
-      m.defines = { SEA: '' };
+      Object.assign(variant.uniforms, own);
+      variant.defines = { SEA: '' };
     }
-    stillByDefault(m);
-    return m;
+    stillByDefault(variant);
+    return variant;
   };
   return { open: make(1, sea), stream: make(0) };
 }

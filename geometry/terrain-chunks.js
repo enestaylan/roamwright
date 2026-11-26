@@ -25,59 +25,59 @@ function buildChunkGeometry(land, ci, cj, lod) {
   const step = 1 << lod,
     n = cells / step,
     m = n + 3;
-  const pos = new Float32Array(m * m * 3),
-    nor = new Float32Array(m * m * 3),
-    col = new Float32Array(m * m * 3),
+  const positions = new Float32Array(m * m * 3),
+    normals = new Float32Array(m * m * 3),
+    chunkColors = new Float32Array(m * m * 3),
     uv = new Float32Array(m * m * 2);
   let p = 0;
-  for (let b = 0; b < m; b++) {
-    const jj = clamp(b - 1, 0, n),
-      sb = b === 0 || b === m - 1;
-    for (let a = 0; a < m; a++, p++) {
-      const ii = clamp(a - 1, 0, n),
-        skirt = sb || a === 0 || a === m - 1;
+  for (let row = 0; row < m; row++) {
+    const jj = clamp(row - 1, 0, n),
+      sb = row === 0 || row === m - 1;
+    for (let column = 0; column < m; column++, p++) {
+      const ii = clamp(column - 1, 0, n),
+        skirt = sb || column === 0 || column === m - 1;
       const gi = ci * cells + ii * step,
         gj = cj * cells + jj * step,
         k = gj * stride + gi;
       const x = x0 + gi * spacing,
         z = z0 + gj * spacing;
-      pos[p * 3] = x;
-      pos[p * 3 + 1] = heights[k] - (skirt ? 5 + 5 * lod : 0) - (sunkAt ? sunkAt(k) : 0);
-      pos[p * 3 + 2] = z;
+      positions[p * 3] = x;
+      positions[p * 3 + 1] = heights[k] - (skirt ? 5 + 5 * lod : 0) - (sunkAt ? sunkAt(k) : 0);
+      positions[p * 3 + 2] = z;
       normalOf(land, k, _normal);
-      nor[p * 3] = _normal[0];
-      nor[p * 3 + 1] = _normal[1];
-      nor[p * 3 + 2] = _normal[2];
-      col[p * 3] = SRGB2LIN[colors[k * 3]];
-      col[p * 3 + 1] = SRGB2LIN[colors[k * 3 + 1]];
-      col[p * 3 + 2] = SRGB2LIN[colors[k * 3 + 2]];
+      normals[p * 3] = _normal[0];
+      normals[p * 3 + 1] = _normal[1];
+      normals[p * 3 + 2] = _normal[2];
+      chunkColors[p * 3] = SRGB2LIN[colors[k * 3]];
+      chunkColors[p * 3 + 1] = SRGB2LIN[colors[k * 3 + 1]];
+      chunkColors[p * 3 + 2] = SRGB2LIN[colors[k * 3 + 2]];
       uv[p * 2] = x / 9;
       uv[p * 2 + 1] = z / 9;
     }
   }
-  return chunkGeometry(pos, nor, col, uv, m, bedY);
+  return chunkGeometry(positions, normals, chunkColors, uv, m, bedY);
 }
 // A chunk's geometry from its m x m points: two triangles to a cell, the deep lake bed's (below bedY) in a group of their own.
-function chunkGeometry(pos, nor, col, uv, m, bedY) {
+function chunkGeometry(positions, normals, chunkColors, uv, m, bedY) {
   const Index = m * m > 65536 ? Uint32Array : Uint16Array;
-  const idx = new Index((m - 1) * (m - 1) * 6);
+  const indices = new Index((m - 1) * (m - 1) * 6);
   let q = 0,
-    e = idx.length; // land from the front, deep lake bed (group 1, the plain bed material) from the back
-  const deep = (i, j, k) => pos[i * 3 + 1] < bedY && pos[j * 3 + 1] < bedY && pos[k * 3 + 1] < bedY;
+    e = indices.length; // land from the front, deep lake bed (group 1, the plain bed material) from the back
+  const deep = (i, j, k) => positions[i * 3 + 1] < bedY && positions[j * 3 + 1] < bedY && positions[k * 3 + 1] < bedY;
   const tri = (i, j, k) => {
     if (deep(i, j, k)) {
-      idx[--e] = k;
-      idx[--e] = j;
-      idx[--e] = i;
+      indices[--e] = k;
+      indices[--e] = j;
+      indices[--e] = i;
     } else {
-      idx[q++] = i;
-      idx[q++] = j;
-      idx[q++] = k;
+      indices[q++] = i;
+      indices[q++] = j;
+      indices[q++] = k;
     }
   };
-  for (let b = 0; b < m - 1; b++)
-    for (let a = 0; a < m - 1; a++) {
-      const i00 = b * m + a,
+  for (let row = 0; row < m - 1; row++)
+    for (let column = 0; column < m - 1; column++) {
+      const i00 = row * m + column,
         i10 = i00 + 1,
         i01 = i00 + m,
         i11 = i01 + 1;
@@ -85,15 +85,15 @@ function chunkGeometry(pos, nor, col, uv, m, bedY) {
       tri(i10, i01, i11);
     }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(chunkColors, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.setIndex(new THREE.BufferAttribute(indices, 1));
   if (bedY !== undefined) {
     // a chunk with no deep bed (or nothing but bed) has one group: an empty one would still be a draw call
     if (q) g.addGroup(0, q, 0);
-    if (q < idx.length) g.addGroup(q, idx.length - q, 1);
+    if (q < indices.length) g.addGroup(q, indices.length - q, 1);
   }
   g.computeBoundingSphere();
   g.computeBoundingBox();
@@ -115,10 +115,10 @@ function buildFineGeometry(land, ci, cj) {
     rel = new Float32Array(r * r),
     weights = [0, 0, 0, 0],
     corner = [0, 0, 0, 0];
-  const place = (a, b) => {
-    // the grid cell and the place in it of fine point (a, b) of this chunk, clamped to the land
-    const fa = Math.min(Math.max(ci * cells * FINE + a, 0), last * FINE),
-      fb = Math.min(Math.max(cj * cells * FINE + b, 0), last * FINE),
+  const place = (column, row) => {
+    // the grid cell and the place in it of fine point (column, row) of this chunk, clamped to the land
+    const fa = Math.min(Math.max(ci * cells * FINE + column, 0), last * FINE),
+      fb = Math.min(Math.max(cj * cells * FINE + row, 0), last * FINE),
       i = Math.min((fa / FINE) | 0, last - 1),
       j = Math.min((fb / FINE) | 0, last - 1),
       u = fa / FINE - i,
@@ -139,32 +139,32 @@ function buildFineGeometry(land, ci, cj) {
           (1 - u) * (heights[k + stride] - heights[k + stride + 1]) +
           (1 - v) * (heights[k + 1] - heights[k + stride + 1]);
   };
-  for (let b = 0; b < r; b++)
-    for (let a = 0; a < r; a++) {
-      const h = place(a - 1, b - 1),
-        x = x0 + (ci * cells * FINE + a - 1) * step,
-        z = z0 + (cj * cells * FINE + b - 1) * step;
-      base[b * r + a] = h;
-      rel[b * r + a] = relief(x, z, h);
+  for (let row = 0; row < r; row++)
+    for (let column = 0; column < r; column++) {
+      const h = place(column - 1, row - 1),
+        x = x0 + (ci * cells * FINE + column - 1) * step,
+        z = z0 + (cj * cells * FINE + row - 1) * step;
+      base[row * r + column] = h;
+      rel[row * r + column] = relief(x, z, h);
     }
-  const pos = new Float32Array(m * m * 3),
-    nor = new Float32Array(m * m * 3),
-    col = new Float32Array(m * m * 3),
+  const positions = new Float32Array(m * m * 3),
+    normals = new Float32Array(m * m * 3),
+    chunkColors = new Float32Array(m * m * 3),
     uv = new Float32Array(m * m * 2);
   let p = 0;
-  for (let b = 0; b < m; b++) {
-    const jj = clamp(b - 1, 0, n),
-      sb = b === 0 || b === m - 1;
-    for (let a = 0; a < m; a++, p++) {
-      const ii = clamp(a - 1, 0, n),
-        skirt = sb || a === 0 || a === m - 1,
+  for (let row = 0; row < m; row++) {
+    const jj = clamp(row - 1, 0, n),
+      sb = row === 0 || row === m - 1;
+    for (let column = 0; column < m; column++, p++) {
+      const ii = clamp(column - 1, 0, n),
+        skirt = sb || column === 0 || column === m - 1,
         q = (jj + 1) * r + ii + 1,
         x = x0 + (ci * cells * FINE + ii) * step,
         z = z0 + (cj * cells * FINE + jj) * step;
       place(ii, jj);
-      pos[p * 3] = x;
-      pos[p * 3 + 1] = base[q] + rel[q] - (skirt ? 5 : 0);
-      pos[p * 3 + 2] = z;
+      positions[p * 3] = x;
+      positions[p * 3 + 1] = base[q] + rel[q] - (skirt ? 5 : 0);
+      positions[p * 3 + 2] = z;
       // the grid's normal between its points, as the slope of a height field, plus the relief's slope
       let nx = 0,
         ny = 0,
@@ -184,17 +184,17 @@ function buildFineGeometry(land, ci, cj) {
       const gx = -nx / ny + (rel[q + 1] - rel[q - 1]) / (2 * step),
         gz = -nz / ny + (rel[q + r] - rel[q - r]) / (2 * step),
         len = Math.hypot(gx, 1, gz);
-      nor[p * 3] = -gx / len;
-      nor[p * 3 + 1] = 1 / len;
-      nor[p * 3 + 2] = -gz / len;
-      col[p * 3] = cr;
-      col[p * 3 + 1] = cg;
-      col[p * 3 + 2] = cb;
+      normals[p * 3] = -gx / len;
+      normals[p * 3 + 1] = 1 / len;
+      normals[p * 3 + 2] = -gz / len;
+      chunkColors[p * 3] = cr;
+      chunkColors[p * 3 + 1] = cg;
+      chunkColors[p * 3 + 2] = cb;
       uv[p * 2] = x / 9;
       uv[p * 2 + 1] = z / 9;
     }
   }
-  return chunkGeometry(pos, nor, col, uv, m, bedY);
+  return chunkGeometry(positions, normals, chunkColors, uv, m, bedY);
 }
 // Builds the ground at its coarsest or, with initialPosition {x, y, z}, at the levels seen from that position.
 // The returned updater follows camera.position as the viewer moves. `materials` is the pair
@@ -251,8 +251,8 @@ export function terrainChunks(parent, land, materials, {
       if (!initialPosition) show(chunk, 3);
       chunks.push(chunk);
     }
-  const boxOf = c => [c.cx - width / 2, c.cz - width / 2, c.cx + width / 2, c.cz + width / 2],
-    overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3],
+  const boxOf = chunk => [chunk.cx - width / 2, chunk.cz - width / 2, chunk.cx + width / 2, chunk.cz + width / 2],
+    overlaps = (firstBounds, secondBounds) => firstBounds[0] < secondBounds[2] && secondBounds[0] < firstBounds[2] && firstBounds[1] < secondBounds[3] && secondBounds[1] < firstBounds[3],
     nearBox = (box, range, position) =>
       Math.hypot(
         Math.max(box[0] - position.x, 0, position.x - box[2]),
@@ -261,14 +261,14 @@ export function terrainChunks(parent, land, materials, {
       range * lodScale();
   // the chunks under ground held at a level, found when it is first seen (the list may fill later)
   const holdUnder = h => {
-    h.chunks = chunks.filter(c => overlaps(boxOf(c), h.box));
+    h.chunks = chunks.filter(chunk => overlaps(boxOf(chunk), h.box));
     h.fine = false;
-    for (const c of h.chunks) (c.holds ??= []).push(h);
+    for (const chunk of h.chunks) (chunk.holds ??= []).push(h);
   };
   // the level a chunk wants, `want` by its distance, or finer where ground over it is held within range
-  const heldLevel = (c, want, position) => {
-    if (c.holds)
-      for (let i = 0; i < c.holds.length; i++) if (nearBox(c.holds[i].box, c.holds[i].range, position)) want = Math.min(want, c.holds[i].level);
+  const heldLevel = (chunk, want, position) => {
+    if (chunk.holds)
+      for (let i = 0; i < chunk.holds.length; i++) if (nearBox(chunk.holds[i].box, chunk.holds[i].range, position)) want = Math.min(want, chunk.holds[i].level);
     return want;
   };
   // whether every chunk under held ground stands at its level or finer
@@ -284,21 +284,21 @@ export function terrainChunks(parent, land, materials, {
     let built = false;
     const count = force ? chunks.length : checksPerFrame;
     for (let n = 0; n < count; n++) {
-      const c = chunks[chunkCursor];
+      const chunk = chunks[chunkCursor];
       chunkCursor = (chunkCursor + 1) % chunks.length;
-      const dx = Math.max(Math.abs(position.x - c.cx) - width * 0.5, 0),
-        dz = Math.max(Math.abs(position.z - c.cz) - width * 0.5, 0);
-      const d = Math.hypot(dx, dz, Math.max(0, position.y - altitudeStart) * altitudeWeight);
+      const dx = Math.max(Math.abs(position.x - chunk.cx) - width * 0.5, 0),
+        dz = Math.max(Math.abs(position.z - chunk.cz) - width * 0.5, 0);
+      const viewDistance = Math.hypot(dx, dz, Math.max(0, position.y - altitudeStart) * altitudeWeight);
       const fine = low && Math.hypot(dx, dz) < fineRange;
       const want = fine
         ? -1
         : heldLevel(
-            c,
-            d < distances[0] * lodScale() ? 0 : d < distances[1] * lodScale() ? 1 : d < distances[2] * lodScale() ? 2 : 3,
+            chunk,
+            viewDistance < distances[0] * lodScale() ? 0 : viewDistance < distances[1] * lodScale() ? 1 : viewDistance < distances[2] * lodScale() ? 2 : 3,
             position,
           );
-      if (want === c.lod || (built && !force)) continue;
-      show(c, want);
+      if (want === chunk.lod || (built && !force)) continue;
+      show(chunk, want);
       built = true;
     }
     for (let i = 0; i < held.length; i++) held[i].fine = nearBox(held[i].box, held[i].range, position) && standsAt(held[i]);

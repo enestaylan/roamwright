@@ -15,22 +15,22 @@ export function terrainExtension({ centerX = 0, centerZ = 0, size, segments, rea
   const boundary = new Uint32Array(perimeter);
   for (let ring = 0; ring <= rows; ring++) {
     const radius = half * growth ** ring;
-    for (let t = 0; t < perimeter; t++) {
-      const side = Math.floor(t / segments);
-      const along = t % segments;
+    for (let perimeterIndex = 0; perimeterIndex < perimeter; perimeterIndex++) {
+      const side = Math.floor(perimeterIndex / segments);
+      const along = perimeterIndex % segments;
       let col = along, row = 0;
       switch (side) {
         case 1: col = segments; row = along; break;
         case 2: col = segments - along; row = segments; break;
         case 3: col = 0; row = segments - along; break;
       }
-      if (ring === 0) boundary[t] = row * (segments + 1) + col;
-      const vertex = ring * perimeter + t;
+      if (ring === 0) boundary[perimeterIndex] = row * (segments + 1) + col;
+      const vertex = ring * perimeter + perimeterIndex;
       const axis = -radius + 2 * radius * along / segments;
       positions[3 * vertex] = centerX + (side === 0 ? axis : side === 1 ? radius : side === 2 ? -axis : -radius);
       positions[3 * vertex + 2] = centerZ + (side === 0 ? -radius : side === 1 ? axis : side === 2 ? radius : -axis);
       if (ring === rows) continue;
-      const next = ring * perimeter + (t + 1) % perimeter;
+      const next = ring * perimeter + (perimeterIndex + 1) % perimeter;
       const offset = 6 * vertex;
       indices[offset] = vertex;
       indices[offset + 1] = next;

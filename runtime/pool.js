@@ -136,7 +136,7 @@ export function createPool({
   const unheard = () => {};
   const load = slot => slot.tasks.reduce((sum, task) => sum + task.cost, 0);
   // Costs include both running and queued jobs. Dispatch immediately, even when the main thread is busy.
-  const leastBusy = list => list.reduce((a, b) => (load(b) < load(a) ? b : a));
+  const leastBusy = list => list.reduce((leastLoaded, candidate) => (load(candidate) < load(leastLoaded) ? candidate : leastLoaded));
   // Register the input to send once per worker before a job that names this preparation.
   function prepare(name, input, cost = 1) {
     preparations.set(name, { input, cost });
@@ -169,7 +169,7 @@ export function createPool({
     while (elastic && slots.length < Math.min(count, capacity)) grow();
     const others = slots.filter(slot => !slot.holds.has(name)),
       more = Math.min(count, slots.length) - (slots.length - others.length);
-    for (const slot of others.sort((a, b) => load(a) - load(b)).slice(0, Math.max(0, more))) {
+    for (const slot of others.sort((firstSlot, secondSlot) => load(firstSlot) - load(secondSlot)).slice(0, Math.max(0, more))) {
       slot.holds.add(name);
       send(slot, name, preparation.input, [], preparation.cost, null, name).catch(unheard);
     }

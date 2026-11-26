@@ -10,7 +10,7 @@ const still = { kept: false, sum: 0, round: 0 }; // round: which drawing of the 
 const markStill = object => object.layers.enable(STILL_LAYER);
 const isStill = object => (object.layers.mask & STILL_BIT) !== 0;
 // Where a mesh stands, how it is turned (about any axis) and its size, as one number
-const placeOf = e => e[12] * 1.37 + e[13] * 2.11 + e[14] * 0.59 + e[0] * 5.3 + e[1] * 3.3 + e[2] * 4.1 + e[5] * 1.9 + e[6] * 2.7;
+const placeOf = elements => elements[12] * 1.37 + elements[13] * 2.11 + elements[14] * 0.59 + elements[0] * 5.3 + elements[1] * 3.3 + elements[2] * 4.1 + elements[5] * 1.9 + elements[6] * 2.7;
 
 // Record a caster during cache generation. On subsequent draws, skip it only
 // when its cached revision still matches the caller-supplied transform or batch revision.

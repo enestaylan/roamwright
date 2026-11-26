@@ -62,16 +62,16 @@ export function createSky({ field, dome, moonRadius: MOON_RADIUS = 0.0347 }) {
       const float SHEET = ${(FLARE / CLOUD_SHEET).toFixed(6)};      // the sheet's share of a unit of the layer
       const float MANY = 0.86;       // how much of the light scattered many times in a cloud comes out of it,
       const float ONCE = 0.5;        // and of the light scattered once
-      float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-      float hash13(vec3 p){ p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
-      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
-        return mix(mix(hash12(i), hash12(i+vec2(1,0)), f.x), mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), f.x), f.y); }
+      float hash12(vec2 samplePosition){ vec3 mixed = fract(vec3(samplePosition.xyx) * .1031); mixed += dot(mixed, mixed.yzx + 33.33); return fract((mixed.x + mixed.y) * mixed.z); }
+      float hash13(vec3 samplePosition){ samplePosition = fract(samplePosition * .1031); samplePosition += dot(samplePosition, samplePosition.zyx + 31.32); return fract((samplePosition.x + samplePosition.y) * samplePosition.z); }
+      float vn(vec2 samplePosition){ vec2 cell = floor(samplePosition), blend = fract(samplePosition); blend = blend*blend*(3.-2.*blend);
+        return mix(mix(hash12(cell), hash12(cell+vec2(1,0)), blend.x), mix(hash12(cell+vec2(0,1)), hash12(cell+vec2(1,1)), blend.x), blend.y); }
       // where a direction meets the clouds' base, on the sheet
-      vec2 sheetAt(vec3 d){ return d.xz / (max(d.y, 0.0) + ${DIP}) * SHEET + uCloudAt; }
+      vec2 sheetAt(vec3 viewDirection){ return viewDirection.xz / (max(viewDirection.y, 0.0) + ${DIP}) * SHEET + uCloudAt; }
       // how much of a cloud is drawn at a direction's height: none low in the sky, over the roofs and hills (cloud-field.js)
       float aloft(float y){ return smoothstep(${LOWEST}, ${WHOLE}, y); }
       // how much of the light a drop sends on at an angle from the way it came (c the cosine): g > 0 mostly onwards
-      float sentOn(float c, float g){ float k = 1.0 + g * g - 2.0 * g * c; return (1.0 - g * g) / (k * sqrt(k)); }
+      float sentOn(float cosAngle, float anisotropy){ float phaseTerm = 1.0 + anisotropy * anisotropy - 2.0 * anisotropy * cosAngle; return (1.0 - anisotropy * anisotropy) / (phaseTerm * sqrt(phaseTerm)); }
       // the clouds in a direction: rgb the light they send to the eye, a how much of the sky behind them they hide
       vec4 clouds(vec3 d, vec3 behind){
         vec4 dome = cloudDome(d);

@@ -29,8 +29,8 @@ export function createHandOver({ painted, frameShare }) {
     if (drawn === was) handed = 0;
   }
 
-  const heldBytes = geometry => Object.values(geometry.attributes).reduce((sum, a) => sum + (a.array?.byteLength ?? 0), 0);
-  const letsGo = geometry => Object.values(geometry.attributes).some(a => Object.hasOwn(a, 'onUploadCallback'));
+  const heldBytes = geometry => Object.values(geometry.attributes).reduce((sum, attribute) => sum + (attribute.array?.byteLength ?? 0), 0);
+  const letsGo = geometry => Object.values(geometry.attributes).some(attribute => Object.hasOwn(attribute, 'onUploadCallback'));
 
   function handToCard(roots, signal) {
     const turn = handing.then(() => handOver(roots, signal));

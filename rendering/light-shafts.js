@@ -60,10 +60,10 @@ export function createLightShafts({
   // How high the ground stands round (x, z) on nearly every side, in metres over y; 0 where it is open on a side or more.
   function enclosedRise(x, y, z) {
     for (let i = 0; i < AROUND; i++) {
-      const a = (i / AROUND) * Math.PI * 2;
+      const sampleAngle = (i / AROUND) * Math.PI * 2;
       let top = -Infinity;
       for (let j = 0; j < RIM_REACH.length; j++)
-        top = Math.max(top, ground(x + Math.cos(a) * RIM_REACH[j], z + Math.sin(a) * RIM_REACH[j]));
+        top = Math.max(top, ground(x + Math.cos(sampleAngle) * RIM_REACH[j], z + Math.sin(sampleAngle) * RIM_REACH[j]));
       _rims[i] = top - y;
     }
     _rims.sort();
@@ -73,38 +73,38 @@ export function createLightShafts({
   // visitor is near enough for the rest of its height to be measured: a shaft in an enclosed basin stands over the rim from afar.
   function findRim() {
     for (let i = 0; i < shafts.length; i++) {
-      const s = shafts[i];
-      if (s.rim >= 0 || !s.mesh.parent || !isShown(s.mesh)) continue;
-      s.mesh.getWorldPosition(_from);
+      const shaft = shafts[i];
+      if (shaft.rim >= 0 || !shaft.mesh.parent || !isShown(shaft.mesh)) continue;
+      shaft.mesh.getWorldPosition(_from);
       const rim = enclosedRise(_from.x, _from.y, _from.z);
-      s.rim = rim > 0 ? Math.min(TALLEST, rim + RIM_OVER) : 0;
-      s.want = Math.max(s.want, s.rim);
+      shaft.rim = rim > 0 ? Math.min(TALLEST, rim + RIM_OVER) : 0;
+      shaft.want = Math.max(shaft.want, shaft.rim);
       return;
     }
   }
-  function updateShafts(dt) {
+  function updateShafts(deltaSeconds) {
     findRim();
     let next = null,
       best = MEASURE_NEAR * MEASURE_NEAR;
     for (let i = shafts.length - 1; i >= 0; i--) {
-      const s = shafts[i],
-        m = s.mesh;
-      if (s.found) {
-        m.scale.y += (s.want - m.scale.y) * Math.min(1, GROW * dt);
-        if (Math.abs(s.want - m.scale.y) < 0.05) {
-          m.scale.y = s.want;
+      const shaft = shafts[i],
+        mesh = shaft.mesh;
+      if (shaft.found) {
+        mesh.scale.y += (shaft.want - mesh.scale.y) * Math.min(1, GROW * deltaSeconds);
+        if (Math.abs(shaft.want - mesh.scale.y) < 0.05) {
+          mesh.scale.y = shaft.want;
           shafts[i] = shafts[shafts.length - 1];
           shafts.pop();
         }
         continue;
       }
-      if (s.want > m.scale.y) m.scale.y += (s.want - m.scale.y) * Math.min(1, GROW * dt); // up to its rim's height meanwhile
-      if (measuring || !m.parent || !isShown(m)) continue;
-      m.getWorldPosition(_from);
-      const d = _from.distanceToSquared(camera.position);
-      if (d < best) {
-        best = d;
-        next = s;
+      if (shaft.want > mesh.scale.y) mesh.scale.y += (shaft.want - mesh.scale.y) * Math.min(1, GROW * deltaSeconds); // up to its rim's height meanwhile
+      if (measuring || !mesh.parent || !isShown(mesh)) continue;
+      mesh.getWorldPosition(_from);
+      const distanceSquared = _from.distanceToSquared(camera.position);
+      if (distanceSquared < best) {
+        best = distanceSquared;
+        next = shaft;
       }
     }
     if (!next) return;
@@ -124,8 +124,8 @@ export function createLightShafts({
 }
 
 // Whether a mesh and all that holds it are shown
-function isShown(o) {
-  for (; o; o = o.parent) if (!o.visible) return false;
+function isShown(object) {
+  for (; object; object = object.parent) if (!object.visible) return false;
   return true;
 }
 

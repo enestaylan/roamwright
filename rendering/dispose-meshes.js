@@ -10,8 +10,8 @@ export function disposeMeshRoots(roots, sharedGeometries) {
     if (mesh.isPieceBatch) mesh.free();
     else geometry.dispose();
   }
-  for (let i = roots.length - 1; i >= 0; i--) {
-    const root = roots[i];
+  for (let childIndex = roots.length - 1; childIndex >= 0; childIndex--) {
+    const root = roots[childIndex];
     root.removeFromParent();
     root.traverse(release);
   }

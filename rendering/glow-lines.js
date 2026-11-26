@@ -8,27 +8,27 @@ attribute vec3 to;
 uniform vec2 screen;
 uniform float width;
 varying float across;
-vec4 seen(vec3 p) {
-  vec4 v = modelViewMatrix * vec4(p, 1.0);
-  float far = length(v.xyz);
-  v.xyz -= v.xyz / far * (${PULL[0].toFixed(3)} + ${PULL[1].toFixed(4)} * far);
-  return projectionMatrix * v;
+vec4 seen(vec3 localPoint) {
+  vec4 viewPoint = modelViewMatrix * vec4(localPoint, 1.0);
+  float viewDistance = length(viewPoint.xyz);
+  viewPoint.xyz -= viewPoint.xyz / viewDistance * (${PULL[0].toFixed(3)} + ${PULL[1].toFixed(4)} * viewDistance);
+  return projectionMatrix * viewPoint;
 }
 void main() {
-  vec4 a = seen(from), b = seen(to);
+  vec4 clipStart = seen(from), clipEnd = seen(to);
   across = position.y;
-  if (a.w <= 0.0 || b.w <= 0.0) {
+  if (clipStart.w <= 0.0 || clipEnd.w <= 0.0) {
     gl_Position = vec4(0.0, 0.0, 2.0, 1.0); // an end behind the viewer: the segment is not drawn
     return;
   }
   vec2 halfScreen = 0.5 * screen,
-    sa = a.xy / a.w * halfScreen,
-    sb = b.xy / b.w * halfScreen,
-    along = normalize(sb - sa + vec2(1e-5, 0.0)),
+    screenStart = clipStart.xy / clipStart.w * halfScreen,
+    screenEnd = clipEnd.xy / clipEnd.w * halfScreen,
+    along = normalize(screenEnd - screenStart + vec2(1e-5, 0.0)),
     side = vec2(-along.y, along.x);
-  vec4 p = mix(a, b, position.x);
-  p.xy += (side * position.y + along * (position.x * 2.0 - 1.0)) * width / halfScreen * p.w;
-  gl_Position = p;
+  vec4 clipPoint = mix(clipStart, clipEnd, position.x);
+  clipPoint.xy += (side * position.y + along * (position.x * 2.0 - 1.0)) * width / halfScreen * clipPoint.w;
+  gl_Position = clipPoint;
 }`;
 
 const FRAGMENT = /* glsl */ `

@@ -65,35 +65,35 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
   // Each particle is one camera-facing quad (instanced), moved entirely in the vertex shader from its spawn data.
   // The alpha pool draws smoke, dust and shadow as lit, billowing puffs; the additive pool draws glows (kind 0),
   // flame tongues that stand upright and lick upward (kind 1) and embers (kind 2).
-  function makeParticles(cap, additive) {
-    if (!Number.isInteger(cap) || cap < 1) throw new RangeError('Particle capacity must be a positive integer');
+  function makeParticles(capacity, additive) {
+    if (!Number.isInteger(capacity) || capacity < 1) throw new RangeError('Particle capacity must be a positive integer');
     if (!fxU.uNoise.value) fxU.uNoise.value = noiseTexture();
-    const g = new THREE.InstancedBufferGeometry(),
-      q = new THREE.PlaneGeometry(1, 1);
-    g.setIndex(q.index);
-    g.setAttribute('position', q.attributes.position);
-    const mk = n => {
-      const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n);
-      a.setUsage(THREE.DynamicDrawUsage);
-      return a;
+    const particleGeometry = new THREE.InstancedBufferGeometry(),
+      quadGeometry = new THREE.PlaneGeometry(1, 1);
+    particleGeometry.setIndex(quadGeometry.index);
+    particleGeometry.setAttribute('position', quadGeometry.attributes.position);
+    const mk = itemSize => {
+      const attribute = new THREE.InstancedBufferAttribute(new Float32Array(capacity * itemSize), itemSize);
+      attribute.setUsage(THREE.DynamicDrawUsage);
+      return attribute;
     };
     const pos = mk(3),
       vel = mk(3),
       dat = mk(4),
       col = mk(4),
       sed = mk(4);
-    for (let i = 0; i < cap; i++) {
+    for (let i = 0; i < capacity; i++) {
       dat.array[i * 4] = -1e5;
       dat.array[i * 4 + 1] = 1;
     }
-    g.setAttribute('aPos', pos);
-    g.setAttribute('aVel', vel);
-    g.setAttribute('aData', dat);
-    g.setAttribute('aCol', col);
-    g.setAttribute('aSeed', sed);
-    g.instanceCount = 0;
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7);
-    const mat = new THREE.ShaderMaterial({
+    particleGeometry.setAttribute('aPos', pos);
+    particleGeometry.setAttribute('aVel', vel);
+    particleGeometry.setAttribute('aData', dat);
+    particleGeometry.setAttribute('aCol', col);
+    particleGeometry.setAttribute('aSeed', sed);
+    particleGeometry.instanceCount = 0;
+    particleGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7);
+    const material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -213,13 +213,13 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
         #include <colorspace_fragment>
       }`,
     });
-    const pts = new THREE.Mesh(g, mat);
-    pts.frustumCulled = false;
-    pts.renderOrder = additive ? additiveOrder : alphaOrder;
-    pts.layers.set(layer);
-    scene.add(pts);
+    const mesh = new THREE.Mesh(particleGeometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = additive ? additiveOrder : alphaOrder;
+    mesh.layers.set(layer);
+    scene.add(mesh);
     return {
-      cap,
+      cap: capacity,
       add: additive,
       head: 0,
       cycleEnd: -Infinity,
@@ -235,7 +235,7 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
       dirty: false,
       wrapped: false,
       until: 0, // when the last particle sent out dies: until then the pool is drawn
-      pts,
+      pts: mesh,
     };
   }
   // The particle pSpawn sends out next, set field by field by its caller: pSpawn is too long for the engine to take into its callers,
@@ -246,62 +246,62 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
   // hard the wind pushes it.
   const spawn = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, size: 0, r: 0, g: 0, b: 0, drag: 0, grav: 0, e1: NaN, e2: 0, e3: 0 };
   // Sends out the particle set in `spawn` from pool s, and puts its e1 (NaN: the pool's own, 0 additive, 0.5 alpha), e2 and e3 back.
-  function pSpawn(s) {
-    const p = spawn,
-      i = s.head,
+  function pSpawn(system) {
+    const particle = spawn,
+      i = system.head,
       i3 = i * 3,
       i4 = i * 4;
-    s.head = i + 1 === s.cap ? 0 : i + 1;
-    if (s.head === 0) s.wrapped = true;
-    s.pos[i3] = p.x;
-    s.pos[i3 + 1] = p.y;
-    s.pos[i3 + 2] = p.z;
-    s.vel[i3] = p.vx;
-    s.vel[i3 + 1] = p.vy;
-    s.vel[i3 + 2] = p.vz;
+    system.head = i + 1 === system.cap ? 0 : i + 1;
+    if (system.head === 0) system.wrapped = true;
+    system.pos[i3] = particle.x;
+    system.pos[i3 + 1] = particle.y;
+    system.pos[i3 + 2] = particle.z;
+    system.vel[i3] = particle.vx;
+    system.vel[i3 + 1] = particle.vy;
+    system.vel[i3 + 2] = particle.vz;
     const time = elapsed();
-    s.dat[i4] = time;
-    s.dat[i4 + 1] = p.life;
+    system.dat[i4] = time;
+    system.dat[i4 + 1] = particle.life;
     // Use the birth and lifetime the shader receives, including float32 rounding.
-    s.cycleEnd = Math.max(s.cycleEnd, s.dat[i4] + s.dat[i4 + 1]);
-    if (s.head === 0) {
-      s.previousCycleEnd = s.cycleEnd;
-      s.cycleEnd = -Infinity;
+    system.cycleEnd = Math.max(system.cycleEnd, system.dat[i4] + system.dat[i4 + 1]);
+    if (system.head === 0) {
+      system.previousCycleEnd = system.cycleEnd;
+      system.cycleEnd = -Infinity;
     }
-    if (time + p.life > s.until) s.until = time + p.life;
-    s.dat[i4 + 2] = p.size;
-    s.dat[i4 + 3] = p.grav;
-    s.col[i4] = p.r;
-    s.col[i4 + 1] = p.g;
-    s.col[i4 + 2] = p.b;
-    s.col[i4 + 3] = p.drag;
-    s.sed[i4] = random();
-    s.sed[i4 + 1] = Number.isNaN(p.e1) ? (s.add ? 0 : 0.5) : p.e1;
-    s.sed[i4 + 2] = p.e2;
-    s.sed[i4 + 3] = p.e3;
-    p.e1 = NaN;
-    p.e2 = p.e3 = 0;
-    if (i < s.lo) s.lo = i;
-    if (i > s.hi) s.hi = i;
-    s.dirty = true;
+    if (time + particle.life > system.until) system.until = time + particle.life;
+    system.dat[i4 + 2] = particle.size;
+    system.dat[i4 + 3] = particle.grav;
+    system.col[i4] = particle.r;
+    system.col[i4 + 1] = particle.g;
+    system.col[i4 + 2] = particle.b;
+    system.col[i4 + 3] = particle.drag;
+    system.sed[i4] = random();
+    system.sed[i4 + 1] = Number.isNaN(particle.e1) ? (system.add ? 0 : 0.5) : particle.e1;
+    system.sed[i4 + 2] = particle.e2;
+    system.sed[i4 + 3] = particle.e3;
+    particle.e1 = NaN;
+    particle.e2 = particle.e3 = 0;
+    if (i < system.lo) system.lo = i;
+    if (i > system.hi) system.hi = i;
+    system.dirty = true;
   }
   // Uploads the parts of a particle system's buffers that changed this frame, and draws the system only while a particle lives.
-  function pFlush(s) {
-    s.pts.visible = elapsed() < s.until;
+  function pFlush(system) {
+    system.pts.visible = elapsed() < system.until;
     // All slots at or beyond the write head are from the previous lap of the ring.
     // Keep their original blend order until even its longest-lived particle has expired.
-    s.pts.geometry.instanceCount = Math.fround(fxU.uTime.value) <= s.previousCycleEnd ? s.cap : s.head;
-    if (!s.dirty) return;
-    for (let k = 0; k < s.attrs.length; k++) {
-      const a = s.attrs[k];
-      a.clearUpdateRanges();
-      if (!s.wrapped) a.addUpdateRange(s.lo * a.itemSize, (s.hi - s.lo + 1) * a.itemSize);
-      a.needsUpdate = true;
+    system.pts.geometry.instanceCount = Math.fround(fxU.uTime.value) <= system.previousCycleEnd ? system.cap : system.head;
+    if (!system.dirty) return;
+    for (let k = 0; k < system.attrs.length; k++) {
+      const attribute = system.attrs[k];
+      attribute.clearUpdateRanges();
+      if (!system.wrapped) attribute.addUpdateRange(system.lo * attribute.itemSize, (system.hi - system.lo + 1) * attribute.itemSize);
+      attribute.needsUpdate = true;
     }
-    s.dirty = false;
-    s.wrapped = false;
-    s.lo = 1e9;
-    s.hi = -1;
+    system.dirty = false;
+    system.wrapped = false;
+    system.lo = 1e9;
+    system.hi = -1;
   }
 
   return { emberMaterial, fxU, makeParticles, pFlush, pSpawn, spawn };

@@ -3,8 +3,8 @@ import { clamp, lerp, sstep } from '../math/scalar.js';
 // Two-bone leg from hip to ankle in the fore-and-aft plane: for an ankle at (forward, up) from the hip, the thigh's and the
 // knee's rotation, written into out.
 export function solveBipedLeg(out, rig, forward, up, minReach = Math.abs(rig.thigh - rig.shin)) {
-  const D = clamp(Math.sqrt(forward * forward + up * up), minReach, rig.thigh + rig.shin - 1e-4),
-    bend = Math.acos(clamp((D * D - rig.thigh * rig.thigh - rig.shin * rig.shin) / (2 * rig.thigh * rig.shin), -1, 1));
+  const reach = clamp(Math.sqrt(forward * forward + up * up), minReach, rig.thigh + rig.shin - 1e-4),
+    bend = Math.acos(clamp((reach * reach - rig.thigh * rig.thigh - rig.shin * rig.shin) / (2 * rig.thigh * rig.shin), -1, 1));
   out[0] = -(Math.atan2(forward, -up) + Math.atan2(rig.shin * Math.sin(bend), rig.thigh + rig.shin * Math.cos(bend)));
   out[1] = bend;
 }
@@ -21,15 +21,15 @@ export function solePitch(foot, u, duty, back, strike, push) {
 // sole pitched by `pitch` (about the ball of the foot with the heel up, about the heel with the toes up) on ground that itself
 // pitches by `slope` (both radians, toes down is more).
 export function ankleOffset(out, rig, pitch, slope) {
-  const c = Math.cos(pitch),
-    s = Math.sin(pitch),
-    forward = pitch >= 0 ? rig.ballOffset - rig.ballOffset * c + rig.ankleHeight * s : -rig.heelOffset + rig.heelOffset * c + rig.ankleHeight * s,
-    up = pitch >= 0 ? rig.ballOffset * s + rig.ankleHeight * c : -rig.heelOffset * s + rig.ankleHeight * c;
+  const cosPitch = Math.cos(pitch),
+    sinPitch = Math.sin(pitch),
+    forward = pitch >= 0 ? rig.ballOffset - rig.ballOffset * cosPitch + rig.ankleHeight * sinPitch : -rig.heelOffset + rig.heelOffset * cosPitch + rig.ankleHeight * sinPitch,
+    up = pitch >= 0 ? rig.ballOffset * sinPitch + rig.ankleHeight * cosPitch : -rig.heelOffset * sinPitch + rig.ankleHeight * cosPitch;
   if (slope) {
-    const cs = Math.cos(slope),
-      ss = Math.sin(slope);
-    out[0] = forward * cs + up * ss;
-    out[1] = up * cs - forward * ss;
+    const cosSlope = Math.cos(slope),
+      sinSlope = Math.sin(slope);
+    out[0] = forward * cosSlope + up * sinSlope;
+    out[1] = up * cosSlope - forward * sinSlope;
   } else {
     out[0] = forward;
     out[1] = up;

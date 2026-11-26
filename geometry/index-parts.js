@@ -51,10 +51,10 @@ export function indexParts(parts) {
   return packed;
 }
 
-function sameVertex(attributes, a, b) {
+function sameVertex(attributes, firstVertex, secondVertex) {
   for (let i = 0; i < attributes.length; i++) {
     const { source, stride } = attributes[i];
-    for (let j = 0; j < stride; j++) if (source[a * stride + j] !== source[b * stride + j]) return false;
+    for (let j = 0; j < stride; j++) if (source[firstVertex * stride + j] !== source[secondVertex * stride + j]) return false;
   }
   return true;
 }

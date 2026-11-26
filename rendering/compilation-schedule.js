@@ -16,7 +16,7 @@ export function createCompilationSchedule({renderer, scene, beginCompiles, putTo
     try {
       const done = beginCompiles(scene, warmed);
       const added = addedSince(known);
-      return Promise.resolve(done).then(() => putToUse(added.filter(p => programs().includes(p)))).catch(onError);
+      return Promise.resolve(done).then(() => putToUse(added.filter(program => programs().includes(program)))).catch(onError);
     } catch (error) { onError(error); }
   }
   // Disjoint subtrees of one scene can share a pass without being reparented. A blocking load
@@ -41,7 +41,7 @@ export function createCompilationSchedule({renderer, scene, beginCompiles, putTo
     }
     const known = new Set(programs());
     const unfinished = signal && interrupted.get(retryKey);
-    if (unfinished) for (const p of known) if (unfinished.has(p)) known.delete(p);
+    if (unfinished) for (const program of known) if (unfinished.has(program)) known.delete(program);
     let timer, onAbort;
     const deadline = signal && new AbortController();
     const active = signal && AbortSignal.any([signal, deadline.signal]);

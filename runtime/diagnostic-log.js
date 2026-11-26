@@ -17,7 +17,7 @@ export function createDiagnosticLog({
     burstAt = 0,
     burst = 0,
     dropped = 0;
-  const whenIdle = page.requestIdleCallback ? fn => page.requestIdleCallback(fn, { timeout: idleMs }) : fn => page.setTimeout(fn, 0);
+  const whenIdle = page.requestIdleCallback ? callback => page.requestIdleCallback(callback, { timeout: idleMs }) : callback => page.setTimeout(callback, 0);
   const saveSoon = () => whenIdle(save);
   function save() {
     saving = 0;
@@ -70,7 +70,7 @@ export function createDiagnosticLog({
   const beforeLogRead = flush => flushes.push(flush);
   function readLog(kind) {
     for (let i = 0; i < flushes.length; i++) flushes[i]();
-    return kind ? entries.filter(e => e.kind === kind) : entries.slice();
+    return kind ? entries.filter(entry => entry.kind === kind) : entries.slice();
   }
   function clearLog() {
     entries.length = 0;

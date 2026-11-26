@@ -7,14 +7,14 @@ import { markStill } from '../rendering/still-casters.js';
 //  (instanceArrays, putInstance), and the instanced meshes the page draws from them (instancedMesh, instancedTwin).
 // ════════════════════════════════════════════════════════════════════════
 
-// The arrays of `n` copies: a matrix and a linear colour to each, filled by putInstance.
-const instanceArrays = n => ({ matrices: new Float32Array(n * 16), colours: new Float32Array(n * 3) });
-// Copy `i` of `arrays`: placed by `matrix` (TRS), tinted (r, g, b), as InstancedMesh.setMatrixAt and setColorAt would write them.
-function putInstance(arrays, i, matrix, r, g, b) {
-  matrix.toArray(arrays.matrices, i * 16);
-  arrays.colours[i * 3] = r;
-  arrays.colours[i * 3 + 1] = g;
-  arrays.colours[i * 3 + 2] = b;
+// Allocate space for one matrix and one linear RGB colour per instance.
+const instanceArrays = instanceCount => ({ matrices: new Float32Array(instanceCount * 16), colours: new Float32Array(instanceCount * 3) });
+// Write the transform and linear RGB colour at instanceIndex in Three.js buffer order.
+function putInstance(arrays, instanceIndex, matrix, red, green, blue) {
+  matrix.toArray(arrays.matrices, instanceIndex * 16);
+  arrays.colours[instanceIndex * 3] = red;
+  arrays.colours[instanceIndex * 3 + 1] = green;
+  arrays.colours[instanceIndex * 3 + 2] = blue;
 }
 // An instanced mesh of `geometry` drawn at the copies of `arrays`. It is made empty and then given them, so that it does not
 // first write a matrix of its own for every copy only to have it replaced.
@@ -46,15 +46,15 @@ class Copies {
     this.matrices = [];
     this.colours = [];
   }
-  add(shape, col, m) {
+  add(shape, color, transform) {
     if (shape !== this.shape) throw new Error('Copies hold one shape');
-    const e = m.elements;
-    this.matrices.push(...e);
+    const elements = transform.elements;
+    this.matrices.push(...elements);
     const at = this.matrices.length - 4; // the translation, moved to the builder's origin
     this.matrices[at] += this.ox;
     this.matrices[at + 1] += this.oy;
     this.matrices[at + 2] += this.oz;
-    this.colours.push(col[0], col[1], col[2]);
+    this.colours.push(color[0], color[1], color[2]);
   }
   // The instanced mesh of the copies under `parent`, standing still, casting a shadow unless told not to; the lists are let go.
   mesh(material, parent, shadow = true) {
@@ -82,9 +82,9 @@ export function partitionInstances(arrays, cellSize) {
   const { matrices, colours } = arrays;
   const cells = new Map();
   for (let i = 0; i < matrices.length / 16; i++) {
-    const k = Math.floor(matrices[i*16+12] / cellSize) + ',' + Math.floor(matrices[i*16+14] / cellSize);
-    let ids = cells.get(k);
-    if (!ids) cells.set(k, ids = []);
+    const cellKey = Math.floor(matrices[i*16+12] / cellSize) + ',' + Math.floor(matrices[i*16+14] / cellSize);
+    let ids = cells.get(cellKey);
+    if (!ids) cells.set(cellKey, ids = []);
     ids.push(i);
   }
   if (cells.size < 2) return matrices.length ? [arrays] : [];

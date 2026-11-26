@@ -25,8 +25,8 @@ const MIDDLE = ACROSS.indexOf(0),
 function shutBeyondBanks(bank, first) {
   for (const step of [-1, 1]) {
     let dry = false;
-    for (let k = MIDDLE + step; k >= 0 && k < ACROSS.length; k += step) {
-      const depth = (first + k) * 4;
+    for (let crossIndex = MIDDLE + step; crossIndex >= 0 && crossIndex < ACROSS.length; crossIndex += step) {
+      const depth = (first + crossIndex) * 4;
       if (dry) bank[depth] = Math.min(bank[depth], DRY);
       else dry = bank[depth] < 0;
     }
@@ -36,7 +36,7 @@ function shutBeyondBanks(bank, first) {
  * Build an indexed ribbon from spring to mouth. The ribbon starts at a point
  * and widens downstream. When terrain is supplied, the water shader clips the
  * ribbon at the first raised bank on each side of a cross-section.
- * @param {[number, number][]} pts - At least two downstream-ordered [x, z] points in metres.
+ * @param {[number, number][]} points - At least two downstream-ordered [x, z] points in metres.
  * @param {number} width - Full stream width in metres once the channel has widened.
  * @param {(t: number) => number} surface - Water elevation in metres at `t = i / (pts.length - 1)`.
  *   Samples are spaced by point index. Unevenly spaced points get equal increments in t.
@@ -56,58 +56,58 @@ function shutBeyondBanks(bank, first) {
  * water.dispose();
  * ```
  */
-export function streamGeometry(pts, width, surface, bed, banks = null, fadeAt = null) {
-  const n = pts.length,
+export function streamGeometry(points, width, surface, bed, banks = null, fadeAt = null) {
+  const pointCount = points.length,
     across = ACROSS.length,
-    pos = new Float32Array(n * across * 3),
-    flow = new Float32Array(n * across * 3),
-    current = new Float32Array(n * across * 2),
-    bank = new Float32Array(n * across * 4),
-    idx = [],
+    positions = new Float32Array(pointCount * across * 3),
+    flow = new Float32Array(pointCount * across * 3),
+    current = new Float32Array(pointCount * across * 2),
+    bank = new Float32Array(pointCount * across * 4),
+    indices = [],
     reach = width * 0.5 + (banks ? banks.reach : 0),
     grows = banks?.grows ?? SPRING.grows * width;
   let run = 0;
-  for (let i = 0; i < n; i++) {
-    const a = pts[Math.max(0, i - 1)],
-      b = pts[Math.min(n - 1, i + 1)];
-    let dx = b[0] - a[0],
-      dz = b[1] - a[1];
-    const l = Math.hypot(dx, dz) || 1;
-    dx /= l;
-    dz /= l;
-    if (i > 0) run += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    const y = surface(i / (n - 1)),
-      grade = sstep(0.015, 0.32, (bed[Math.max(i - 3, 0)] - bed[Math.min(i + 3, n - 1)]) / 9),
+  for (let pointIndex = 0; pointIndex < pointCount; pointIndex++) {
+    const previousPoint = points[Math.max(0, pointIndex - 1)],
+      nextPoint = points[Math.min(pointCount - 1, pointIndex + 1)];
+    let dx = nextPoint[0] - previousPoint[0],
+      dz = nextPoint[1] - previousPoint[1];
+    const tangentLength = Math.hypot(dx, dz) || 1;
+    dx /= tangentLength;
+    dz /= tangentLength;
+    if (pointIndex > 0) run += Math.hypot(points[pointIndex][0] - points[pointIndex - 1][0], points[pointIndex][1] - points[pointIndex - 1][1]);
+    const y = surface(pointIndex / (pointCount - 1)),
+      grade = sstep(0.015, 0.32, (bed[Math.max(pointIndex - 3, 0)] - bed[Math.min(pointIndex + 3, pointCount - 1)]) / 9),
       share = headShare(run, width, grows),
-      rising = sstep(0, SPRING.fade * width, run) * (fadeAt ? fadeAt(pts[i][0], pts[i][1]) : 1);
-    for (let k = 0; k < across; k++) {
-      const side = ACROSS[k],
+      rising = sstep(0, SPRING.fade * width, run) * (fadeAt ? fadeAt(points[pointIndex][0], points[pointIndex][1]) : 1);
+    for (let crossIndex = 0; crossIndex < across; crossIndex++) {
+      const side = ACROSS[crossIndex],
         // a strip with no banks to shape it wanders a little in width
         wander = banks
           ? 1
           : 0.89 + 0.09 * Math.sin(run * 0.23 + Math.sign(side) * 1.2) + 0.025 * Math.sin(run * 0.87 - Math.sign(side) * 1.4),
-        off = side * reach * share * wander,
-        x = pts[i][0] - dz * off,
-        z = pts[i][1] + dx * off,
-        v = i * across + k;
-      pos.set([x, y, z], v * 3);
-      flow.set([off / (width * 0.5), run, grade], v * 3);
-      current.set([dx, dz], v * 2);
+        lateralOffset = side * reach * share * wander,
+        x = points[pointIndex][0] - dz * lateralOffset,
+        z = points[pointIndex][1] + dx * lateralOffset,
+        vertexIndex = pointIndex * across + crossIndex;
+      positions.set([x, y, z], vertexIndex * 3);
+      flow.set([lateralOffset / (width * 0.5), run, grade], vertexIndex * 3);
+      current.set([dx, dz], vertexIndex * 2);
       bank.set(
-        [banks ? (y - banks.ground(x, z)) * MURK : DEEP, rising * sstep(1, 0.75, Math.abs(side)), run - springEye(width), off],
-        v * 4,
+        [banks ? (y - banks.ground(x, z)) * MURK : DEEP, rising * sstep(1, 0.75, Math.abs(side)), run - springEye(width), lateralOffset],
+        vertexIndex * 4,
       );
-      if (i < n - 1 && k < across - 1) idx.push(v, v + 1, v + across, v + 1, v + across + 1, v + across);
+      if (pointIndex < pointCount - 1 && crossIndex < across - 1) indices.push(vertexIndex, vertexIndex + 1, vertexIndex + across, vertexIndex + 1, vertexIndex + across + 1, vertexIndex + across);
     }
-    if (banks) shutBeyondBanks(bank, i * across);
+    if (banks) shutBeyondBanks(bank, pointIndex * across);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('aFlow', new THREE.BufferAttribute(flow, 3));
-  g.setAttribute('aCurrent', new THREE.BufferAttribute(current, 2));
-  g.setAttribute('aBank', new THREE.BufferAttribute(bank, 4));
-  g.setIndex(idx);
-  return g;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('aFlow', new THREE.BufferAttribute(flow, 3));
+  geometry.setAttribute('aCurrent', new THREE.BufferAttribute(current, 2));
+  geometry.setAttribute('aBank', new THREE.BufferAttribute(bank, 4));
+  geometry.setIndex(indices);
+  return geometry;
 }
 
 // How far below its spring a stream of this width has the eye of its pool, in metres.

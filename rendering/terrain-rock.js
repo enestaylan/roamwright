@@ -1,22 +1,22 @@
 // World-space rock for a heightfield. The horizontal components of the surface normal
 // weight fixed vertical projections; changing the normal never changes the coordinates.
 export const terrainRockGLSL = /* glsl */ `
-vec3 rockFaceSample(sampler2D grain, vec3 p, float xWeight) {
-  return mix(texture2D(grain, p.xy).rgb, texture2D(grain, p.zy + vec2(0.37, 0.19)).rgb, xWeight);
+vec3 rockFaceSample(sampler2D grain, vec3 texturePosition, float xWeight) {
+  return mix(texture2D(grain, texturePosition.xy).rgb, texture2D(grain, texturePosition.zy + vec2(0.37, 0.19)).rgb, xWeight);
 }
 float rockBed(float height, float frequency, float phase, float footprint) {
   return 0.5 + 0.5 * sin(height * frequency + phase) *
     (1.0 - smoothstep(0.2, 0.5, footprint * frequency));
 }
-vec4 terrainRock(sampler2D grain, vec3 p, vec3 normal, vec3 darkBed, vec3 lightBed, vec3 iron, vec3 lime) {
+vec4 terrainRock(sampler2D grain, vec3 worldPosition, vec3 normal, vec3 darkBed, vec3 lightBed, vec3 iron, vec3 lime) {
   vec2 weights = normal.xz * normal.xz;
   weights *= weights;
   float across = weights.x / max(weights.x + weights.y, 0.00001);
-  vec3 broad = rockFaceSample(grain, p * 0.021, across);
-  vec3 broken = rockFaceSample(grain, p * 0.13, across);
-  vec3 fine = rockFaceSample(grain, p * 0.68, across);
+  vec3 broad = rockFaceSample(grain, worldPosition * 0.021, across);
+  vec3 broken = rockFaceSample(grain, worldPosition * 0.13, across);
+  vec3 fine = rockFaceSample(grain, worldPosition * 0.68, across);
   // Warped beds follow the height through corners. Individual grains keep roughly the same size in both axes.
-  float height = p.y + (texture2D(grain, p.xz * 0.0031).r - 0.5) * 22.0
+  float height = worldPosition.y + (texture2D(grain, worldPosition.xz * 0.0031).r - 0.5) * 22.0
     + (broad.g - 0.5) * 3.5 + (broken.b - 0.5) * 1.5;
   float footprint = fwidth(height) * 0.15915;
   float major = rockBed(height, 0.83, 0.0, footprint), minor = rockBed(height, 2.57, 1.3, footprint);

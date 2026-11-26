@@ -13,11 +13,11 @@ function through(rings, k, t) {
   const last = rings.length - 1,
     i = Math.min(last - 1, Math.floor(t)),
     f = t - i,
-    a = rings[Math.max(0, i - 1)][k],
-    b = rings[i][k],
-    c = rings[i + 1][k],
-    d = rings[Math.min(last, i + 2)][k];
-  return b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - d + f * (3 * (b - c) + d - a)));
+    previousValue = rings[Math.max(0, i - 1)][k],
+    startValue = rings[i][k],
+    endValue = rings[i + 1][k],
+    nextValue = rings[Math.min(last, i + 2)][k];
+  return startValue + 0.5 * f * (endValue - previousValue + f * (2 * previousValue - 5 * startValue + 4 * endValue - nextValue + f * (3 * (startValue - endValue) + nextValue - previousValue)));
 }
 
 // The ring a rope begins with, above its first: drawn in to a point.
@@ -29,12 +29,12 @@ const shut = ring => [ring[0] + ring[1] * 0.8, ring[1] * SHUT, ring[2] * SHUT, r
 // y) (its thickness there, of the rings'), hem(a) (how much lower its end hangs there, metres), lean (how far its strands slant:
 // the way across them goes so much round for each metre down), from (the strand its first side lies at), root (how dark it is
 // where it begins, if not as dark as hair that is gathered).
-function hang(patch, rings, o) {
-  const open = o.a1 !== undefined;
+function hang(patch, rings, options) {
+  const open = options.a1 !== undefined;
   if (!open) rings = [shut(rings[0]), ...rings];
-  const { rows, sides, colour } = o,
-    a0 = o.a0 ?? 0,
-    a1 = o.a1 ?? TAU,
+  const { rows, sides, colour } = options,
+    a0 = options.a0 ?? 0,
+    a1 = options.a1 ?? TAU,
     first = patch.points.length / POINT,
     spans = rings.length - 1,
     at = (i, j) => first + i * (sides + 1) + j,
@@ -48,13 +48,13 @@ function hang(patch, rings, o) {
     const v = i / rows,
       t = v * spans;
     for (let j = 0; j <= sides; j++) {
-      const a = a0 + ((a1 - a0) * j) / sides,
-        y = through(rings, 0, t) - (o.hem ? o.hem(a) * v * v : 0),
-        k = o.swell ? o.swell(v, a, y) : 1;
+      const angle = a0 + ((a1 - a0) * j) / sides,
+        y = through(rings, 0, t) - (options.hem ? options.hem(angle) * v * v : 0),
+        k = options.swell ? options.swell(v, angle, y) : 1;
       place.push(
-        through(rings, 3, t) + Math.cos(a) * through(rings, 1, t) * k,
+        through(rings, 3, t) + Math.cos(angle) * through(rings, 1, t) * k,
         y,
-        through(rings, 4, t) + Math.sin(a) * through(rings, 2, t) * k,
+        through(rings, 4, t) + Math.sin(angle) * through(rings, 2, t) * k,
       );
     }
   }
@@ -66,8 +66,8 @@ function hang(patch, rings, o) {
         r = (i * (sides + 1) + wrap(j + 1)) * 3,
         up = (Math.max(0, i - 1) * (sides + 1) + j) * 3,
         down = (Math.min(rows, i + 1) * (sides + 1) + j) * 3,
-        p = (i * (sides + 1) + j) * 3,
-        a = a0 + ((a1 - a0) * j) / sides,
+        vertexOffset = (i * (sides + 1) + j) * 3,
+        angle = a0 + ((a1 - a0) * j) / sides,
         v = i / rows,
         tx = place[r] - place[l],
         ty = place[r + 1] - place[l + 1],
@@ -79,22 +79,22 @@ function hang(patch, rings, o) {
         ny = tz * ux - tx * uz,
         nz = tx * uy - ty * ux;
       const length = Math.hypot(nx, ny, nz) || 1,
-        out = nx * Math.cos(a) + nz * Math.sin(a) < 0 ? -1 : 1,
-        tone = (o.tone ? o.tone(v, a) : 1) * lerp(o.root ?? ROOT_SHADE, 1, sstep(0, 0.35, v));
+        out = nx * Math.cos(angle) + nz * Math.sin(angle) < 0 ? -1 : 1,
+        tone = (options.tone ? options.tone(v, angle) : 1) * lerp(options.root ?? ROOT_SHADE, 1, sstep(0, 0.35, v));
       nx *= out / length;
       ny *= out / length;
       nz *= out / length;
       patch.points.push(
-        place[p],
-        place[p + 1],
-        place[p + 2],
+        place[vertexOffset],
+        place[vertexOffset + 1],
+        place[vertexOffset + 2],
         nx,
         ny,
         nz,
         colour[0] * tone,
         colour[1] * tone,
         colour[2] * tone,
-        (o.from || 0) + (round * j) / sides + (o.lean || 0) * (rings[0][0] - place[p + 1]),
+        (options.from || 0) + (round * j) / sides + (options.lean || 0) * (rings[0][0] - place[vertexOffset + 1]),
       );
       if (i < rows && j < sides) patch.triangles.push(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i, j + 1));
     }
@@ -103,21 +103,21 @@ function hang(patch, rings, o) {
 // A plait hanging: two halves side by side, their strands slanting in to the line between them, each turn of the plait
 // standing out on one side and then the other. turn: the height of one turn (metres); side: which way it faces (the angle of
 // the line between its halves, as a loft counts angles).
-function plait(patch, rings, o) {
+function plait(patch, rings, options) {
   rings = [shut(rings[0]), ...rings];
-  const turns = Math.max(1, Math.round((rings[0][0] - rings[rings.length - 1][0]) / o.turn)),
+  const turns = Math.max(1, Math.round((rings[0][0] - rings[rings.length - 1][0]) / options.turn)),
     rows = turns * PLAIT_ROWS;
   for (const half of [-1, 1])
     hang(patch, rings, {
-      ...o,
+      ...options,
       rows,
-      sides: o.sides >> 1,
-      a0: o.side + (half < 0 ? -Math.PI : 0),
-      a1: o.side + (half < 0 ? 0 : Math.PI),
+      sides: options.sides >> 1,
+      a0: options.side + (half < 0 ? -Math.PI : 0),
+      a1: options.side + (half < 0 ? 0 : Math.PI),
       lean: (half * PLAIT_LEAN) / STRANDS.span,
-      from: (o.from || 0) + half,
-      swell: (v, a) => 1 + PLAIT_SWELL * half * Math.cos(v * turns * TAU) * Math.sin(Math.abs(a - o.side)) * sstep(0, 0.06, v),
-      tone: (v, a) => 0.72 + 0.28 * Math.sin(Math.abs(a - o.side)),
+      from: (options.from || 0) + half,
+      swell: (v, angle) => 1 + PLAIT_SWELL * half * Math.cos(v * turns * TAU) * Math.sin(Math.abs(angle - options.side)) * sstep(0, 0.06, v),
+      tone: (v, angle) => 0.72 + 0.28 * Math.sin(Math.abs(angle - options.side)),
     });
 }
 
@@ -129,10 +129,10 @@ function knot(patch, place, at, size, colour, rows, sides) {
   for (let i = 0; i <= rows; i++)
     for (let j = 0; j <= sides; j++) {
       const polar = (i / rows) * Math.PI,
-        a = (j / sides) * TAU,
-        nx = Math.sin(polar) * Math.cos(a),
+        angle = (j / sides) * TAU,
+        nx = Math.sin(polar) * Math.cos(angle),
         ny = Math.cos(polar),
-        nz = Math.sin(polar) * Math.sin(a),
+        nz = Math.sin(polar) * Math.sin(angle),
         tone = 0.8 + 0.2 * ny,
         v = place([at[0] + nx * size[0], at[1] + ny * size[1], at[2] + nz * size[2], nx / size[0], ny / size[1], nz / size[2]]);
       patch.points.push(
@@ -148,8 +148,8 @@ function knot(patch, place, at, size, colour, rows, sides) {
         (round * j) / sides + 0.35 * (i / rows),
       );
       if (i < rows && j < sides) {
-        const p = first + i * (sides + 1) + j;
-        patch.triangles.push(p, p + sides + 1, p + sides + 2, p, p + sides + 2, p + 1);
+        const vertexIndex = first + i * (sides + 1) + j;
+        patch.triangles.push(vertexIndex, vertexIndex + sides + 1, vertexIndex + sides + 2, vertexIndex, vertexIndex + sides + 2, vertexIndex + 1);
       }
     }
 }
@@ -163,10 +163,10 @@ function nearFallRings(rings, crown) {
     at = y => {
       let i = 0;
       while (i < fallen.length - 2 && y < fallen[i + 1][0]) i++;
-      const a = fallen[i],
-        b = fallen[i + 1],
-        t = Math.min(1, Math.max(0, (y - a[0]) / (b[0] - a[0])));
-      return [lerp(a[1], b[1], t), lerp(a[2], b[2], t), lerp(a[3], b[3], t)];
+      const upperRing = fallen[i],
+        lowerRing = fallen[i + 1],
+        t = Math.min(1, Math.max(0, (y - upperRing[0]) / (lowerRing[0] - upperRing[0])));
+      return [lerp(upperRing[1], lowerRing[1], t), lerp(upperRing[2], lowerRing[2], t), lerp(upperRing[3], lowerRing[3], t)];
     };
   return { rings: fallen, at };
 }

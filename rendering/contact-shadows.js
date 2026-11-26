@@ -28,8 +28,8 @@ export class ContactShadows {
         void main() {
           offset = position.xz;
           weight = intensity;
-          vec3 p = contact.xyz + vec3(position.x * contact.w, lift, position.z * contact.w);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          vec3 contactPosition = contact.xyz + vec3(position.x * contact.w, lift, position.z * contact.w);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(contactPosition, 1.0);
         }`,
       fragmentShader: `
         uniform float opacityScale;

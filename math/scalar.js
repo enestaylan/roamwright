@@ -1,8 +1,8 @@
-const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const lerp = (a, b, t) => a + (b - a) * t;
-// Smoothstep: 0 at a, 1 at b, eased between (b may be less than a, to fall instead of rise).
-const sstep = (a, b, x) => {
-  const t = clamp((x - a) / (b - a), 0, 1);
+const clamp = (value, minimum, maximum) => (value < minimum ? minimum : value > maximum ? maximum : value);
+const lerp = (start, end, fraction) => start + (end - start) * fraction;
+/** Ease from 0 at start to 1 at end. Reverse the endpoints for a falling transition. */
+const sstep = (start, end, x) => {
+  const t = clamp((x - start) / (end - start), 0, 1);
   return t * t * (3 - 2 * t);
 };
 const TAU = Math.PI * 2;

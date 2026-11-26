@@ -29,7 +29,7 @@ function representatives(root) {
   const picked = new Map();
   root.traverse(object => {
     if (!(object.isMesh || object.isPoints || object.isLine || object.isSprite) || !object.material) return;
-    const materials = Array.isArray(object.material) ? object.material.map(m => m.uuid).join(',') : object.material.uuid;
+    const materials = Array.isArray(object.material) ? object.material.map(material => material.uuid).join(',') : object.material.uuid;
     const key = materials + ':' + meshKind(object);
     if (!picked.has(key)) picked.set(key, object);
   });
@@ -71,8 +71,8 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
       traverseVisible: visit => { if (lit !== root) root.traverseVisible(visit); }
     }, view, lit);
     const programs = new Set();
-    for (const m of materials) {
-      const variants = renderer.properties.get(m).programs;
+    for (const material of materials) {
+      const variants = renderer.properties.get(material).programs;
       if (variants) for (const program of variants.values()) {
         if (!ready.has(program)) programs.add(program);
       }
@@ -122,9 +122,9 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
     root.traverse(object => {
       if (!(object.isMesh || object.isPoints || object.isLine) || !object.material) return;
       if (!includeMaterialArrays && Array.isArray(object.material)) return;
-      const m = standIn(object);
-      if (!m) return;
-      const key = [m.uuid, m.side, !!m.map, !!m.alphaMap, m.alphaTest > 0, meshKind(object)].join(':');
+      const standInMaterial = standIn(object);
+      if (!standInMaterial) return;
+      const key = [standInMaterial.uuid, standInMaterial.side, !!standInMaterial.map, !!standInMaterial.alphaMap, standInMaterial.alphaTest > 0, meshKind(object)].join(':');
       if (!picked.has(key)) picked.set(key, object);
     });
     return withTarget(into, () => {
@@ -173,10 +173,10 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
 
   function warmShadowPass(root, {waitForPoint = true} = {}) {
     if (!renderer.shadowMap.enabled) return Promise.resolve();
-    const depth = warmStandIns(root, o => o.castShadow && shadowMaterial(o, false), camera, target, null);
+    const depth = warmStandIns(root, object => object.castShadow && shadowMaterial(object, false), camera, target, null);
     let point;
-    scene.traverseVisible(o => { if (o.isPointLight && o.castShadow) point = true; });
-    const distance = point && warmStandIns(root, o => o.castShadow && shadowMaterial(o, true), camera, target, null);
+    scene.traverseVisible(object => { if (object.isPointLight && object.castShadow) point = true; });
+    const distance = point && warmStandIns(root, object => object.castShadow && shadowMaterial(object, true), camera, target, null);
     for (const twin of twins.values()) {
       twin.map = twin.alphaMap = twin.displacementMap = twin.clippingPlanes = null;
     }

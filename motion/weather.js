@@ -48,9 +48,9 @@ export function createWeather({
   const toward = (v, goal, step) => (v < goal ? Math.min(goal, v + step) : Math.max(goal, v - step));
 
   /**
-   * @param {{wet: number, rain: number, damp: number, gust: number, dust: number, dustStorm: number, mist: number, storm?: number}} env -
+   * @param {{wet: number, rain: number, damp: number, gust: number, dust: number, dustStorm: number, mist: number, storm?: number}} weatherState -
    *   Mutable intensities. Use storm = -1 for the region’s automatic cycle, or 0–1 to override the spell strength.
-   * @param {number} dt - Seconds since the previous update.
+   * @param {number} deltaSeconds - Seconds since the previous update.
    * @param {number} hour - Fraction of one day, from 0 to 1.
    * @param {object} location - Observer and region for this frame.
    * @param {unknown} location.region - Stable identity for the current region.
@@ -63,46 +63,46 @@ export function createWeather({
    * @param {boolean} [location.quiet] - Suppress spells and dawn mist while true.
    * @param {number} [location.ambientDust] - Local background dust intensity.
    */
-  function updateWeather(env, dt, hour, { region, weather: w, x, z, running = true, quiet = false, ambientDust = 0 }) {
-    if (!w) {
-      env.wet = env.rain = env.damp = env.gust = env.dustStorm = env.mist = 0;
-      env.dust = ambientDust;
+  function updateWeather(weatherState, deltaSeconds, hour, { region, weather: regionWeather, x, z, running = true, quiet = false, ambientDust = 0 }) {
+    if (!regionWeather) {
+      weatherState.wet = weatherState.rain = weatherState.damp = weatherState.gust = weatherState.dustStorm = weatherState.mist = 0;
+      weatherState.dust = ambientDust;
       return;
     }
     if (clock.land !== region) {
       // a land just come to: its first spell is a while off
       clock.land = region;
       clock.on = false;
-      clock.next = w.spell ? between(w.every) * (0.5 + 0.5 * random()) : 0;
+      clock.next = regionWeather.spell ? between(regionWeather.every) * (0.5 + 0.5 * random()) : 0;
     }
-    if (w.spell && running) {
-      clock.next -= dt;
+    if (regionWeather.spell && running) {
+      clock.next -= deltaSeconds;
       if (clock.next <= 0) {
         clock.on = !clock.on;
-        clock.next = between(clock.on ? w.lasts : w.every);
+        clock.next = between(clock.on ? regionWeather.lasts : regionWeather.every);
       }
     }
-    let spell = !w.spell || quiet ? 0 : env.storm >= 0 ? env.storm : clock.on ? 1 : 0;
-    if (spell && w.reach) spell *= sstep(w.reach, w.reach * SPELL_FADE, Math.hypot(x - w.x, z - w.z));
-    const dusty = w.spell === 'dust',
-      squall = w.spell === 'squall',
+    let spell = !regionWeather.spell || quiet ? 0 : weatherState.storm >= 0 ? weatherState.storm : clock.on ? 1 : 0;
+    if (spell && regionWeather.reach) spell *= sstep(regionWeather.reach, regionWeather.reach * SPELL_FADE, Math.hypot(x - regionWeather.x, z - regionWeather.z));
+    const dusty = regionWeather.spell === 'dust',
+      squall = regionWeather.spell === 'squall',
       wetGoal = dusty ? 0 : spell,
-      raining = wetGoal > 0.5 && env.wet > 0.75;
+      raining = wetGoal > 0.5 && weatherState.wet > 0.75;
     // clouds gather in under a minute (a squall's sooner) and break up more slowly; the rain waits for the cloud, and stops before it breaks
-    env.wet = toward(env.wet, wetGoal, dt / (wetGoal > env.wet ? (squall ? 22 : 40) : 70));
-    env.rain = toward(env.rain, raining ? 1 : 0, dt / (raining ? 14 : 8));
-    env.damp = toward(env.damp, env.rain > 0.3 ? 1 : 0, dt / (env.rain > 0.3 ? 45 : 240));
-    env.gust = squall ? env.wet : 0;
+    weatherState.wet = toward(weatherState.wet, wetGoal, deltaSeconds / (wetGoal > weatherState.wet ? (squall ? 22 : 40) : 70));
+    weatherState.rain = toward(weatherState.rain, raining ? 1 : 0, deltaSeconds / (raining ? 14 : 8));
+    weatherState.damp = toward(weatherState.damp, weatherState.rain > 0.3 ? 1 : 0, deltaSeconds / (weatherState.rain > 0.3 ? 45 : 240));
+    weatherState.gust = squall ? weatherState.wet : 0;
     // dust: the storm's, what the viewer stands in already (local airborne dust), or a scene's own
-    env.dustStorm = toward(
-      env.dustStorm,
+    weatherState.dustStorm = toward(
+      weatherState.dustStorm,
       dusty ? spell : 0,
-      dt / (dusty && spell > env.dustStorm ? DUST_RISES : DUST_SETTLES),
+      deltaSeconds / (dusty && spell > weatherState.dustStorm ? DUST_RISES : DUST_SETTLES),
     );
-    env.dust = Math.max(env.dustStorm, ambientDust);
-    const clear = (1 - env.wet) * (1 - env.dust),
+    weatherState.dust = Math.max(weatherState.dustStorm, ambientDust);
+    const clear = (1 - weatherState.wet) * (1 - weatherState.dust),
       apart = (hour - DAWN) / MIST_HOURS;
-    env.mist = toward(env.mist, w.mist && !quiet ? Math.exp(-apart * apart) * clear : 0, dt / 6);
+    weatherState.mist = toward(weatherState.mist, regionWeather.mist && !quiet ? Math.exp(-apart * apart) * clear : 0, deltaSeconds / 6);
   }
   return updateWeather;
 }

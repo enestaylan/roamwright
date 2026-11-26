@@ -15,11 +15,11 @@ function after(renderer, object, camera, shadowCamera, geometry, material, group
   previousAfter.call(this, renderer, object, camera, shadowCamera, geometry, material, group);
 }
 
-function kindOf(o) {
-  const morph = o.geometry.morphAttributes;
+function kindOf(object) {
+  const morph = object.geometry.morphAttributes;
   if (morph.position || morph.normal || morph.color) return null;
-  if (o.isSkinnedMesh) return 'skinned';
-  if (o.isInstancedMesh) return o.instanceColor ? 'tinted' : 'instanced';
+  if (object.isSkinnedMesh) return 'skinned';
+  if (object.isInstancedMesh) return object.instanceColor ? 'tinted' : 'instanced';
   return null;
 }
 
@@ -112,11 +112,11 @@ export function installShadowDepth(renderer) {
   handlers.set(renderer, {begin, end});
   function dispose(root) {
     if (!handlers.delete(renderer)) return;
-    root?.traverse(o => {
-      const entry = entries.get(o);
+    root?.traverse(object => {
+      const entry = entries.get(object);
       if (!entry) return;
       for (const field of ['customDepthMaterial','customDistanceMaterial']) {
-        if (entry[field] && o[field] === entry[field]) o[field] = undefined;
+        if (entry[field] && object[field] === entry[field]) object[field] = undefined;
       }
     });
     for (const group of Object.values(materials)) for (const material of Object.values(group)) material.dispose();

@@ -62,29 +62,29 @@ export function createPlayer(spatial, options = {}) {
     const feet = player.y - eye,
       ceiling = feet + obstacleScan;
     const rock = overhead.ground(nx, nz, ceiling),
-      g = Math.max(space.ground(nx, nz), rock);
-    if ((g === rock && g - feet > overheadStep) || overhead.wall(player.x, player.z, nx, nz, feet)) return false;
-    if (space.water && g < space.waterLevel - wadingDepth) return false;
-    if (g - feet > stepHeight) {
+      groundHeight = Math.max(space.ground(nx, nz), rock);
+    if ((groundHeight === rock && groundHeight - feet > overheadStep) || overhead.wall(player.x, player.z, nx, nz, feet)) return false;
+    if (space.water && groundHeight < space.waterLevel - wadingDepth) return false;
+    if (groundHeight - feet > stepHeight) {
       const x2 = nx + dirx * stepProbe,
         z2 = nz + dirz * stepProbe;
       const g2 = Math.max(space.ground(x2, z2), overhead.ground(x2, z2, ceiling));
-      return (g2 - feet) / stepProbe <= stepSlope && g - feet <= maxStep;
+      return (g2 - feet) / stepProbe <= stepSlope && groundHeight - feet <= maxStep;
     }
     const x2 = nx + dirx * slopeProbe,
       z2 = nz + dirz * slopeProbe;
     const g2 = Math.max(space.ground(x2, z2), overhead.ground(x2, z2, ceiling));
-    return (g2 - g) / slopeProbe <= maxSlope;
+    return (g2 - groundHeight) / slopeProbe <= maxSlope;
   }
 
   function keepWithin(space) {
     if (space.round) {
       const rx = player.x - space.cx,
         rz = player.z - space.cz,
-        r = Math.hypot(rx, rz);
-      if (r > space.bound) {
-        player.x = space.cx + (rx / r) * space.bound;
-        player.z = space.cz + (rz / r) * space.bound;
+        radialDistance = Math.hypot(rx, rz);
+      if (radialDistance > space.bound) {
+        player.x = space.cx + (rx / radialDistance) * space.bound;
+        player.z = space.cz + (rz / radialDistance) * space.bound;
       }
     } else {
       const bx = space.bx ?? space.bound,
@@ -94,7 +94,7 @@ export function createPlayer(spatial, options = {}) {
     }
   }
 
-  function flyStep(space, dt, mx, mz, sinYaw, cosYaw) {
+  function flyStep(space, deltaSeconds, mx, mz, sinYaw, cosYaw) {
     const flight = space.flight;
     let speed = input.run ? flySetFast : flySet;
     if (space.flyable) speed = input.run ? flyFast : fly;
@@ -105,14 +105,14 @@ export function createPlayer(spatial, options = {}) {
     const wantX = (-sinYaw * cosPitch * mz + cosYaw * mx) * speed,
       wantZ = (-cosYaw * cosPitch * mz - sinYaw * mx) * speed,
       wantY = (sinPitch * mz + input.up) * speed;
-    const ease = 1 - Math.exp(-dt * flyEase);
+    const ease = 1 - Math.exp(-deltaSeconds * flyEase);
     player.vx += (wantX - player.vx) * ease;
     player.vy += (wantY - player.vy) * ease;
     player.vz += (wantZ - player.vz) * ease;
     const previousFeet = player.y - eye;
-    player.x += player.vx * dt;
-    player.y += player.vy * dt;
-    player.z += player.vz * dt;
+    player.x += player.vx * deltaSeconds;
+    player.y += player.vy * deltaSeconds;
+    player.z += player.vz * deltaSeconds;
     const cx = flight?.cx ?? space.cx,
       cz = flight?.cz ?? space.cz;
     const bx = flight?.bx ?? (space.bx ?? space.bound) + flightMargin,
@@ -146,15 +146,15 @@ export function createPlayer(spatial, options = {}) {
     player.grounded = false;
   }
 
-  function walkStep(space, dt, mx, mz, sinYaw, cosYaw) {
+  function walkStep(space, deltaSeconds, mx, mz, sinYaw, cosYaw) {
     const speed = input.run ? run : walk;
     const wantX = (-sinYaw * mz + cosYaw * mx) * speed,
       wantZ = (-cosYaw * mz - sinYaw * mx) * speed;
-    const ease = 1 - Math.exp(-dt * walkEase);
+    const ease = 1 - Math.exp(-deltaSeconds * walkEase);
     player.vx += (wantX - player.vx) * ease;
     player.vz += (wantZ - player.vz) * ease;
-    const stepx = player.vx * dt,
-      stepz = player.vz * dt,
+    const stepx = player.vx * deltaSeconds,
+      stepz = player.vz * deltaSeconds,
       stepLength = Math.hypot(stepx, stepz);
     if (stepLength > 1e-5) {
       let nx = player.x + stepx,
@@ -187,11 +187,11 @@ export function createPlayer(spatial, options = {}) {
       } else if (player.y - eyes > dropHeight) {
         player.grounded = false;
         player.vy = 0;
-      } else player.y += (eyes - player.y) * Math.min(1, dt * groundEase);
+      } else player.y += (eyes - player.y) * Math.min(1, deltaSeconds * groundEase);
     }
     if (!player.grounded) {
-      player.vy -= gravity * dt;
-      player.y += player.vy * dt;
+      player.vy -= gravity * deltaSeconds;
+      player.y += player.vy * deltaSeconds;
       if (player.y <= eyes) {
         player.y = eyes;
         player.vy = 0;
@@ -199,11 +199,11 @@ export function createPlayer(spatial, options = {}) {
       }
     }
     const pace = Math.hypot(player.vx, player.vz);
-    player.moved += pace * dt;
-    if (player.grounded && pace > bobStart) player.bob += dt * pace * bobRate;
+    player.moved += pace * deltaSeconds;
+    if (player.grounded && pace > bobStart) player.bob += deltaSeconds * pace * bobRate;
   }
 
-  function update(dt) {
+  function update(deltaSeconds) {
     let mx = input.right,
       mz = input.forward;
     const magnitude = Math.hypot(mx, mz);
@@ -213,8 +213,8 @@ export function createPlayer(spatial, options = {}) {
     }
     const sinYaw = Math.sin(player.yaw),
       cosYaw = Math.cos(player.yaw);
-    if (input.fly) flyStep(spatial.space, dt, mx, mz, sinYaw, cosYaw);
-    else walkStep(spatial.space, dt, mx, mz, sinYaw, cosYaw);
+    if (input.fly) flyStep(spatial.space, deltaSeconds, mx, mz, sinYaw, cosYaw);
+    else walkStep(spatial.space, deltaSeconds, mx, mz, sinYaw, cosYaw);
     player.pitch = clamp(player.pitch, -pitchLimit, pitchLimit);
   }
 

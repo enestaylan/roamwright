@@ -155,7 +155,7 @@ export function createQualityFit({ state, post, cardBlocks, cardDone, store, dev
     fit.costs.push(frameCost);
     fit.next = now + PROBE_MS;
     if (fit.costs.length < WINDOW) return;
-    const cost = fit.costs.sort((a, b) => a - b)[WINDOW >> 1],
+    const cost = fit.costs.sort((firstCost, secondCost) => firstCost - secondCost)[WINDOW >> 1],
       fps = ((fit.frames - 1) * 1000) / (now - fit.since),
       at = LEVELS.indexOf(state.quality);
     fit.costs.length = 0;

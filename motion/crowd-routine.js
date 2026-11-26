@@ -5,7 +5,7 @@ import { sstep } from '../math/scalar.js';
  * fro; and those routines fitted to the colliders of their space as the walls they stand among are built. A person is a plain
  * record their crowd keeps; no frame allocates.
  *
- * Routine fields on a person `g`:
+ * Routine fields on a walker:
  * - `legs`: [{ t0, tw, x0, z0, dx, dz, dir, len, travel, start, stop, hide, yaw, role, rest }], walked over `T` seconds from
  *   phase `ph` at `walkSpeed`, each eased in where it `start`s and out where it `stop`s; a leg that `hide`s ends indoors.
  * - `speed`: moved by a keeper of its own, which sets `speed`, `travel` and `sway` (a turn off the line) each frame.
@@ -22,57 +22,57 @@ import { sstep } from '../math/scalar.js';
  * half a metre apart on every leg. A blocked route returns null before drawing
  * from rng. A supplied rng draws a phase and a size in [size, size + spread).
  */
-export function walkRound(points, speed, { retrace = false, clearAt, rng, size = 1, spread = 0 } = {}) {
+export function walkRound(points, speed, { retrace = false, clearAt, rng: random, size = 1, spread = 0 } = {}) {
   if (!points.length || !Number.isFinite(speed) || speed <= 0) throw new RangeError('Expected waypoints and a positive walking speed');
   const seq = retrace ? points.concat(points.slice(1, -1).reverse()) : points;
   const legs = [];
   let time = 0, distance = 0;
   for (let i = 0; i < seq.length; i++) {
-    const a = seq[i], b = seq[(i + 1) % seq.length];
-    if (!Number.isFinite(a.x) || !Number.isFinite(a.z) || !Number.isFinite(b.x) || !Number.isFinite(b.z)
-        || !Number.isFinite(b.w ?? 0) || (b.w ?? 0) < 0) throw new RangeError('Invalid waypoint');
-    const dx = b.x - a.x, dz = b.z - a.z;
+    const startPoint = seq[i], endPoint = seq[(i + 1) % seq.length];
+    if (!Number.isFinite(startPoint.x) || !Number.isFinite(startPoint.z) || !Number.isFinite(endPoint.x) || !Number.isFinite(endPoint.z)
+        || !Number.isFinite(endPoint.w ?? 0) || (endPoint.w ?? 0) < 0) throw new RangeError('Invalid waypoint');
+    const dx = endPoint.x - startPoint.x, dz = endPoint.z - startPoint.z;
     const len = Math.hypot(dx, dz), tw = len / speed;
     if (clearAt) {
       const steps = Math.max(1, Math.ceil(len / 0.5));
       for (let j = 0; j <= steps; j++) {
-        if (!clearAt(a.x + dx * (j / steps), a.z + dz * (j / steps))) return null;
+        if (!clearAt(startPoint.x + dx * (j / steps), startPoint.z + dz * (j / steps))) return null;
       }
     }
     legs.push({
-      x0: a.x, z0: a.z, dx, dz, len, travel: distance, t0: time, tw,
-      dir: Math.atan2(dx, dz), yaw: b.yaw, hide: b.hide, start: a.w > 0, stop: b.w > 0, role: b.role,
+      x0: startPoint.x, z0: startPoint.z, dx, dz, len, travel: distance, t0: time, tw,
+      dir: Math.atan2(dx, dz), yaw: endPoint.yaw, hide: endPoint.hide, start: startPoint.w > 0, stop: endPoint.w > 0, role: endPoint.role,
     });
-    time += tw + (b.w || 0);
+    time += tw + (endPoint.w || 0);
     distance += len;
   }
   const { x, z } = seq[0];
   return {
     ax: x, az: z, bx: x, bz: z, sp: 0, walkSpeed: speed, legs: time ? legs : null,
-    distance, T: time, ph: rng ? rng() * time : 0, s: rng ? size + rng() * spread : size,
+    distance, T: time, ph: random ? random() * time : 0, s: random ? size + random() * spread : size,
   };
 }
 
 /**
- * Where g's routine puts them at clock t, into `at` ({ x, z, yaw, speed, travel, focus, head, rest }). False while they are
+ * Where the walker’s routine puts them at clock t, into `at` ({ x, z, yaw, speed, travel, focus, head, rest }). False while they are
  * indoors at the end of a leg. `headAtHalt(leg, held, left)` gives a beast's head at a halt (1 down), from the seconds it has
  * been held there and those left before the next leg; without it the head is down while grazing.
  */
-export function followRoutine(g, t, at, headAtHalt) {
-  at.x = g.ax;
-  at.z = g.az;
-  at.yaw = g.yaw || 0;
+export function followRoutine(walker, t, at, headAtHalt) {
+  at.x = walker.ax;
+  at.z = walker.az;
+  at.yaw = walker.yaw || 0;
   at.travel = 0;
   at.speed = 0;
-  at.focus = g.role;
-  at.head = g.graze ? 1 : 0;
+  at.focus = walker.role;
+  at.head = walker.graze ? 1 : 0;
   at.rest = 0;
-  if (g.legs) {
-    const tt = (t + g.ph) % g.T;
-    let l = g.legs[0],
+  if (walker.legs) {
+    const tt = (t + walker.ph) % walker.T;
+    let l = walker.legs[0],
       next = null;
-    for (let i = 0; i < g.legs.length; i++) {
-      const q = g.legs[i];
+    for (let i = 0; i < walker.legs.length; i++) {
+      const q = walker.legs[i];
       if (q.t0 <= tt) l = q;
       else {
         next = q;
@@ -84,7 +84,7 @@ export function followRoutine(g, t, at, headAtHalt) {
     let u = Math.min(1, local / Math.max(l.tw, 1e-3));
     if (u === 1 && l.hide) return false;
     if (u < 1) {
-      let speed = g.walkSpeed;
+      let speed = walker.walkSpeed;
       if (ease > 0 && l.start && local < ease) {
         const f = local / ease;
         u *= f * (2 - f);
@@ -97,34 +97,34 @@ export function followRoutine(g, t, at, headAtHalt) {
       at.speed = speed;
     } else {
       if (l.role) at.focus = l.role;
-      if (headAtHalt) at.head = headAtHalt(l, local - l.tw, (next ? next.t0 : g.T) - tt);
+      if (headAtHalt) at.head = headAtHalt(l, local - l.tw, (next ? next.t0 : walker.T) - tt);
       at.rest = l.rest | 0;
     }
     at.x = l.x0 + l.dx * u;
     at.z = l.z0 + l.dz * u;
     at.yaw = l.yaw !== undefined && u === 1 ? l.yaw : l.dir;
     at.travel = l.travel + l.len * u;
-  } else if (g.speed) {
-    at.speed = g.speed;
-    at.travel = g.travel;
-    at.yaw += g.sway || 0;
-  } else if (g.r) {
-    const a = t * g.w + g.ph,
-      speed = Math.abs(g.w) * g.r;
-    at.x = g.ax + Math.cos(a) * g.r;
-    at.z = g.az + Math.sin(a) * g.r;
-    at.yaw = -a + (g.w > 0 ? 0 : Math.PI);
+  } else if (walker.speed) {
+    at.speed = walker.speed;
+    at.travel = walker.travel;
+    at.yaw += walker.sway || 0;
+  } else if (walker.r) {
+    const phaseAngle = t * walker.w + walker.ph,
+      speed = Math.abs(walker.w) * walker.r;
+    at.x = walker.ax + Math.cos(phaseAngle) * walker.r;
+    at.z = walker.az + Math.sin(phaseAngle) * walker.r;
+    at.yaw = -phaseAngle + (walker.w > 0 ? 0 : Math.PI);
     at.speed = speed;
-    at.travel = t * speed + g.ph;
-  } else if (g.sp > 0 && g.len > 0.5) {
-    const travel = t * g.sp + g.ph,
-      f = (travel / g.len) % 2,
+    at.travel = t * speed + walker.ph;
+  } else if (walker.sp > 0 && walker.len > 0.5) {
+    const travel = t * walker.sp + walker.ph,
+      f = (travel / walker.len) % 2,
       u = f < 1 ? f : 2 - f;
     at.travel = travel;
-    at.x += g.dx * u;
-    at.z += g.dz * u;
-    at.yaw = g.pathYaw + (f < 1 ? 0 : Math.PI);
-    at.speed = g.sp * sstep(0, 0.23, Math.min(u, 1 - u) * g.len);
+    at.x += walker.dx * u;
+    at.z += walker.dz * u;
+    at.yaw = walker.pathYaw + (f < 1 ? 0 : Math.PI);
+    at.speed = walker.sp * sstep(0, 0.23, Math.min(u, 1 - u) * walker.len);
   }
   return true;
 }
@@ -140,7 +140,7 @@ export function followRoutine(g, t, at, headAtHalt) {
  * @param {number} [options.step=0.5] Metres between the spots tested along a way.
  * @param {number} [options.short=0.9] Metres short of a wall a walker turns back.
  * @param {number} [options.least=0.5] Metres: a way shorter than this is no walk, and they stand.
- * @returns {(g: object, space: object) => void} Fits g, whose builder gave it (ox, oz) and, for a walker, the way's far end
+ * @returns {(walker: object, space: object) => void} Fits a walker, whose builder gave it (ox, oz) and, for a walker, the way's far end
  *   (bx, bz), to the colliders of `space` as they stand now: sets ax, az, dx, dz, len, pathYaw or yaw, and `fit` (the
  *   space's collider count it was fitted to). People on decks or roofs, on a keeper's leash (`steady`), on legs or circles keep
  *   what their builder gave them.
@@ -151,9 +151,9 @@ export function createWalkFit({ collideIn, hit, onDeck, worldSpace }, { body = 0
   function clearRun(grid, x, z, ux, uz, len) {
     let free = len;
     for (let t = step; t < len + step; t += step) {
-      const d = Math.min(t, len);
-      if (collideIn(grid, x + ux * d, z + uz * d, body)) {
-        free = Math.max(0, d - step - short);
+      const distanceAlong = Math.min(t, len);
+      if (collideIn(grid, x + ux * distanceAlong, z + uz * distanceAlong, body)) {
+        free = Math.max(0, distanceAlong - step - short);
         break;
       }
     }
@@ -161,22 +161,22 @@ export function createWalkFit({ collideIn, hit, onDeck, worldSpace }, { body = 0
     end.x = ux * free;
     end.z = uz * free;
   }
-  return function fitWalk(g, sp) {
-    g.fit = sp.colliders;
-    if (!sp.grid || g.steady || g.legs || g.r || (g.ground !== undefined && !g.onGround)) return;
-    let x = g.ox,
-      z = g.oz;
+  return function fitWalk(walker, sp) {
+    walker.fit = sp.colliders;
+    if (!sp.grid || walker.steady || walker.legs || walker.r || (walker.ground !== undefined && !walker.onGround)) return;
+    let x = walker.ox,
+      z = walker.oz;
     if (sp === worldSpace && onDeck(x, z)) return;
     if (collideIn(sp.grid, x, z, body)) {
       x = hit.x;
       z = hit.z;
     }
-    g.ax = x;
-    g.az = z;
-    if (g.onGround) g.ground = sp.ground(x, z);
-    if (!(g.sp > 0)) return;
-    const dx = g.bx - x,
-      dz = g.bz - z,
+    walker.ax = x;
+    walker.az = z;
+    if (walker.onGround) walker.ground = sp.ground(x, z);
+    if (!(walker.sp > 0)) return;
+    const dx = walker.bx - x,
+      dz = walker.bz - z,
       len = Math.hypot(dx, dz);
     if (len < least) return;
     const ux = dx / len,
@@ -193,11 +193,11 @@ export function createWalkFit({ collideIn, hit, onDeck, worldSpace }, { body = 0
         sz = end.z;
       }
     }
-    g.dx = sx;
-    g.dz = sz;
-    g.len = run;
-    if (run >= least) g.pathYaw = Math.atan2(sx, sz);
-    else g.yaw = Math.atan2(dx, dz); // no room to walk: they stand, facing the way they would have gone
+    walker.dx = sx;
+    walker.dz = sz;
+    walker.len = run;
+    if (run >= least) walker.pathYaw = Math.atan2(sx, sz);
+    else walker.yaw = Math.atan2(dx, dz); // no room to walk: they stand, facing the way they would have gone
   };
 }
 

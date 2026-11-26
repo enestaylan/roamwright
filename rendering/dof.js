@@ -15,17 +15,17 @@ const DOF_FS = `/* glsl */ uniform sampler2D tScene, tDepth; uniform vec4 uDof; 
   float viewDepth(vec2 uv){ return -uNF.x * uNF.y / ((uNF.y - uNF.x) * texture2D(tDepth, uv).x - uNF.y); }
   ${DOF_COC}
   void main(){
-    float r = cocAt(viewDepth(vUv));
-    vec3 sum = texture2D(tScene, vUv).rgb; float wsum = 1.0;
+    float blurRadius = cocAt(viewDepth(vUv));
+    vec3 sum = texture2D(tScene, vUv).rgb; float totalWeight = 1.0;
     for (int i = 1; i < ${TAPS}; i++) {
-      float f = float(i) / ${TAPS}.0, a = float(i) * 2.39996;
-      vec2 o = vec2(cos(a), sin(a)) * sqrt(f) * max(r, 0.5);
-      vec2 uv = vUv + o * uPx;
-      float rs = cocAt(viewDepth(uv)), d = length(o);
-      float w = clamp(min(rs, r) - d + 1.0, 0.0, 1.0);  // a sample counts as far as its own circle, and this one's, reach here
-      sum += clamp(texture2D(tScene, uv).rgb, 0.0, 48.0) * w; wsum += w;
+      float sampleFraction = float(i) / ${TAPS}.0, sampleAngle = float(i) * 2.39996;
+      vec2 sampleOffset = vec2(cos(sampleAngle), sin(sampleAngle)) * sqrt(sampleFraction) * max(blurRadius, 0.5);
+      vec2 uv = vUv + sampleOffset * uPx;
+      float sampleRadius = cocAt(viewDepth(uv)), sampleDistance = length(sampleOffset);
+      float sampleWeight = clamp(min(sampleRadius, blurRadius) - sampleDistance + 1.0, 0.0, 1.0);  // a sample counts as far as its own circle, and this one's, reach here
+      sum += clamp(texture2D(tScene, uv).rgb, 0.0, 48.0) * sampleWeight; totalWeight += sampleWeight;
     }
-    gl_FragColor = vec4(sum / wsum, 1.0);
+    gl_FragColor = vec4(sum / totalWeight, 1.0);
   }`;
 export function createDepthOfField() {
   const dof = {

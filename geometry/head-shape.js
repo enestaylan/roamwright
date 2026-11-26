@@ -22,7 +22,7 @@ const MM = 0.001,
   SCAR_SHADE = 0.14, // how much a millimetre of a scar's seam darkens the skin in it (a crease holds shadow)
   WOUND_DEEP = 4.5, // millimetres a fresh wound's torn flesh lies below the skin round it,
   WOUND_SWELL = 2.2, // and how far the bruised skin at its edges swells;
-  HEALED_DEEP = 2.4, // once healed (H.healed), how far the scar lies sunk where the flesh was torn, and how high its edges and
+  HEALED_DEEP = 2.4, // once healed (faceFeatures.healed), how far the scar lies sunk where the flesh was torn, and how high its edges and
   HEALED_RIDGE = 0.9, //   the cords of scar tissue across it stand
   // Where a wound has torn the nose away, the opening into the skull's nose left in its place: a pear-shaped hollow down the
   // middle of the face (from the top of its rows to its foot, millimetres up the face), its half width at the foot, how deep it
@@ -35,19 +35,19 @@ const MM = 0.001,
 // worked out: a head asks for these some hundred thousand times.
 const FAR = 3.2;
 function bump(v, at, wide) {
-  const d = (v - at) / wide;
-  return d > FAR || d < -FAR ? 0 : Math.exp(-d * d);
+  const scaledOffset = (v - at) / wide;
+  return scaledOffset > FAR || scaledOffset < -FAR ? 0 : Math.exp(-scaledOffset * scaledOffset);
 }
 function blob(x, y, ax, ay, wx, wy) {
   const dx = (x - ax) / wx,
     dy = (y - ay) / wy,
-    d = dx * dx + dy * dy;
-  return d > FAR * FAR ? 0 : Math.exp(-d);
+    distanceSquared = dx * dx + dy * dy;
+  return distanceSquared > FAR * FAR ? 0 : Math.exp(-distanceSquared);
 }
 // The larger of two heights, rounded where they meet.
-function smoothMax(a, b, k) {
-  const h = clamp(0.5 + (a - b) / (2 * k), 0, 1);
-  return lerp(b, a, h) + k * h * (1 - h);
+function smoothMax(firstValue, secondValue, blendWidth) {
+  const h = clamp(0.5 + (firstValue - secondValue) / (2 * blendWidth), 0, 1);
+  return lerp(secondValue, firstValue, h) + blendWidth * h * (1 - h);
 }
 // How far a point lies from the line a-b, to which side of it (positive to the outside of the face), and how far along.
 function fromLine(x, y, ax, ay, bx, by, out) {
@@ -62,27 +62,27 @@ function fromLine(x, y, ax, ay, bx, by, out) {
 const _slice = { x: 0, z: 0 },
   _line = [0, 0];
 
-// The surface of a head of shape H, as a function of a direction from its middle: fn(dir, outPoint, channels). Channels: lips,
+// The surface of a head with the given features, as a function of a direction from its middle: sampleHead(direction, outPoint, channels). Channels: lips,
 // shade, warmth (cheeks, nose), where a beard grows on cheeks and jaw, brow, where a moustache grows, the chin's tuft, a scar. A fine head has open lids and a mouth that can open (its grid lays rows
 // along their edges); a plain one, for the far mesh and for coarse sculpts, has them closed and painted.
 function headFn(features = {}, fine = false) {
-  const H = { jaw: 0.5, lips: 1, cheek: 1, mouthW: 1, brow: 1, socket: 1, hollow: 0, chin: 1, nose: 1, bridge: 0, ...features };
-  const age = H.age || 0,
-    fat = H.fat || 0,
-    dead = H.dead || 0,
-    jawWide = (H.jaw - 0.5) * 0.17,
-    chinWide = ((H.chinW ?? 1) - 1) * 0.5,
-    slope = H.slope ?? 1,
-    lips = H.lips,
-    noseLong = H.noseL ?? 1,
-    noseWide = H.noseW ?? 1;
+  const faceFeatures = { jaw: 0.5, lips: 1, cheek: 1, mouthW: 1, brow: 1, socket: 1, hollow: 0, chin: 1, nose: 1, bridge: 0, ...features };
+  const age = faceFeatures.age || 0,
+    fat = faceFeatures.fat || 0,
+    dead = faceFeatures.dead || 0,
+    jawWide = (faceFeatures.jaw - 0.5) * 0.17,
+    chinWide = ((faceFeatures.chinW ?? 1) - 1) * 0.5,
+    slope = faceFeatures.slope ?? 1,
+    lips = faceFeatures.lips,
+    noseLong = faceFeatures.noseL ?? 1,
+    noseWide = faceFeatures.noseW ?? 1;
   const width = sampled(
       y =>
         WIDTH(y) *
         (1 +
           jawWide * bump(y, -84, 26) +
           chinWide * sstep(-88, -108, y) +
-          (H.cheek - 1) * 0.05 * bump(y, -18, 16) +
+          (faceFeatures.cheek - 1) * 0.05 * bump(y, -18, 16) +
           fat * 0.1 * bump(y, -62, 36)),
       -HALF,
       HALF,
@@ -100,7 +100,7 @@ function headFn(features = {}, fine = false) {
   // the outline of the bare skull and jaw at a height, at an angle round from the front
   // (a grid asks for one height many times running, so the slice last asked for is kept)
   const kept = { y: NaN, square: 2, wide: 0, fore: 0, aft: 0, mid: 0 };
-  const slice = (y, angle, o) => {
+  const slice = (y, angle, output) => {
     if (y !== kept.y) {
       const k = closing(y);
       kept.y = y;
@@ -112,24 +112,24 @@ function headFn(features = {}, fine = false) {
     }
     const n = kept.square,
       s = Math.sin(angle),
-      c = Math.cos(angle),
-      q = Math.pow(Math.pow(Math.abs(s), n) + Math.pow(Math.abs(c), n), -1 / n);
-    o.x = kept.wide * s * q;
-    o.z = kept.mid + (c > 0 ? kept.fore : kept.aft) * c * q;
+      cosAngle = Math.cos(angle),
+      q = Math.pow(Math.pow(Math.abs(s), n) + Math.pow(Math.abs(cosAngle), n), -1 / n);
+    output.x = kept.wide * s * q;
+    output.z = kept.mid + (cosAngle > 0 ? kept.fore : kept.aft) * cosAngle * q;
   };
 
   // the eyes: where each ball sits, and the edges of its lids from the inner corner (0) to the outer (1)
-  const eyeX = 31.5 * (H.eyeGap ?? 1),
+  const eyeX = 31.5 * (faceFeatures.eyeGap ?? 1),
     eyeY = -1,
     ballR = 12.2,
     lidR = ballR + 1.3,
     innerX = eyeX - 14.5,
     outerX = eyeX + 14,
-    one = !!H.oneEye, // the two eyes healed over, and one in the middle of the brow
-    opening = one ? 0 : (H.eye ?? 1),
-    tilt = H.tilt ?? 0;
+    one = !!faceFeatures.oneEye, // the two eyes healed over, and one in the middle of the brow
+    opening = one ? 0 : (faceFeatures.eye ?? 1),
+    tilt = faceFeatures.tilt ?? 0;
   slice(eyeY, Math.asin(eyeX / width(eyeY)) * 0.93, _slice);
-  const eyeZ = _slice.z - 14.4 - (H.deep ?? 0);
+  const eyeZ = _slice.z - 14.4 - (faceFeatures.deep ?? 0);
   slice(ONE_EYE.y, 0, _slice);
   const oneZ = _slice.z + ONE_EYE.out - ONE_EYE.r, // where the middle of the one eye's ball is
     oneLid = ONE_EYE.r + 1.3;
@@ -137,16 +137,16 @@ function headFn(features = {}, fine = false) {
     upperLid = t => corner(t) + 5.4 * opening * Math.pow(4 * Math.pow(t, 0.85) * (1 - Math.pow(t, 0.85)), 0.72),
     lowerLid = t => corner(t) - 3.9 * opening * Math.pow(4 * Math.pow(t, 1.15) * (1 - Math.pow(t, 1.15)), 0.8);
   // a row of the grid is bent so that the two lid rows run along the lids' edges; away from the eye it lies level
-  const lidEdges = (ax, o) => {
+  const lidEdges = (ax, output) => {
     const t = (ax - innerX) / (outerX - innerX);
     if (t > 0 && t < 1) {
-      o[0] = upperLid(t);
-      o[1] = lowerLid(t);
+      output[0] = upperLid(t);
+      output[1] = lowerLid(t);
     } else {
       const c = corner(clamp(t, 0, 1)),
         e = sstep(0, 7, t < 0 ? innerX - ax : ax - outerX);
-      o[0] = c + (LID_TOP - c) * e;
-      o[1] = c + (LID_LOW - c) * e;
+      output[0] = c + (LID_TOP - c) * e;
+      output[1] = c + (LID_LOW - c) * e;
     }
     return t;
   };
@@ -158,11 +158,11 @@ function headFn(features = {}, fine = false) {
         : low - ((LID_LOW - row) * (low - LID_BELOW)) / (LID_LOW - LID_BELOW);
 
   // An old scar at a point of the face (millimetres; x to the person's left), as how far the skin is sunk there and how pale it
-  // is: H.scar is the seam's two ends, its width (millimetres) and how far its middle bows down from the straight, like a smile.
+  // is: faceFeatures.scar is the seam's two ends, its width (millimetres) and how far its middle bows down from the straight, like a smile.
   // A wider one is deeper and paler.
   const _scar = [0, 0],
     scarAt = (x, y) => {
-      const [ax0, ay0, bx, by, wide = SCAR_WIDE, bow = 0] = H.scar,
+      const [ax0, ay0, bx, by, wide = SCAR_WIDE, bow = 0] = faceFeatures.scar,
         k = Math.sqrt(wide / SCAR_WIDE);
       fromLine(x, y, ax0, ay0, bx, by, _line);
       const t = _line[1],
@@ -172,19 +172,19 @@ function headFn(features = {}, fine = false) {
       _scar[1] = k * ends * bump(d, 0, wide);
       return _scar;
     };
-  // A fresh wound (H.wound: as a scar, its two ends, width and bow): a broad band of torn flesh, sunk and ragged, the skin
+  // A fresh wound (faceFeatures.wound: as a scar, its two ends, width and bow): a broad band of torn flesh, sunk and ragged, the skin
   // swollen along its edges; as how deep it lies at a point and how much of it there is (0 to 1). Healed, the band has closed
   // into a scar: shallower, the swelling gone, its edges and cords of scar tissue across it standing proud.
   const _wound = [0, 0],
     woundAt = (x, y) => {
-      const [ax0, ay0, bx, by, wide, bow = 0] = H.wound;
+      const [ax0, ay0, bx, by, wide, bow = 0] = faceFeatures.wound;
       fromLine(x, y, ax0, ay0, bx, by, _line);
       const t = _line[1],
         ragged = 0.22 * wide * (Math.sin(t * 23 + x * 0.31) * 0.6 + Math.sin(t * 41 - y * 0.27) * 0.4),
         d = Math.abs(_line[0] + bow * 4 * t * (1 - t)) - ragged,
         ends = sstep(-0.06, 0.08, t) * sstep(1.06, 0.92, t),
         torn = ends * sstep(wide, wide * 0.7, d);
-      _wound[0] = H.healed
+      _wound[0] = faceFeatures.healed
         ? torn * HEALED_DEEP * (0.75 + 0.25 * Math.sin(x * 0.9) * Math.sin(y * 1.1)) -
           HEALED_RIDGE * (ends * bump(d, wide * 0.85, wide * 0.18) + torn * Math.max(0, Math.sin(t * 29 + x * 0.2)) ** 3)
         : torn * WOUND_DEEP * (0.8 + 0.2 * Math.sin(x * 0.9) * Math.sin(y * 1.1)) - ends * WOUND_SWELL * bump(d, wide * 1.15, wide * 0.4);
@@ -192,33 +192,33 @@ function headFn(features = {}, fine = false) {
       return _wound;
     };
   // an eye the wound crosses is burst and swollen shut
-  const woundShut = H.wound ? [woundAt(-eyeX, eyeY)[1], woundAt(eyeX, eyeY)[1]] : null;
+  const woundShut = faceFeatures.wound ? [woundAt(-eyeX, eyeY)[1], woundAt(eyeX, eyeY)[1]] : null;
   // a wound across the middle of the nose takes all of it below the bone, tip and wings, not only the band it crosses
-  const noseLost = H.wound ? Math.max(woundAt(0, -12)[1], woundAt(0, -22)[1], woundAt(0, -32)[1]) : 0;
-  const mouthX = 24.5 * H.mouthW,
+  const noseLost = faceFeatures.wound ? Math.max(woundAt(0, -12)[1], woundAt(0, -22)[1], woundAt(0, -32)[1]) : 0;
+  const mouthX = 24.5 * faceFeatures.mouthW,
     browLine = ax => 19 + 5 * Math.sin(Math.PI * clamp(ax / 56, 0, 1)) - 2.5 * sstep(40, 60, ax),
-    foldDeep = (0.55 + 1.5 * age + fat) * (H.fold ?? 1),
+    foldDeep = (0.55 + 1.5 * age + fat) * (faceFeatures.fold ?? 1),
     alaX = 11.8 * noseWide;
   // the soft forms of the face without the nose, lids and lips: brow ridge, sockets, cheekbones, the muzzle of the mouth, chin
   const soft = (ax, y) => {
     const line = browLine(ax),
-      ridge = (1 + 2.8 * bump(ax, 17, 14)) * H.brow * sstep(64, 42, ax) * (y > line ? bump(y, line, 8) : bump(y, line, 4.2)),
-      socket = H.socket * (4 * blob(ax, y, 30, 5, 17, 11) + 2.6 * blob(ax, y, 17.5, 1, 7, 9));
+      ridge = (1 + 2.8 * bump(ax, 17, 14)) * faceFeatures.brow * sstep(64, 42, ax) * (y > line ? bump(y, line, 8) : bump(y, line, 4.2)),
+      socket = faceFeatures.socket * (4 * blob(ax, y, 30, 5, 17, 11) + 2.6 * blob(ax, y, 17.5, 1, 7, 9));
     return (
       ridge -
       socket +
-      2.6 * H.cheek * blob(ax, y, 46, -16, 14, 11) -
+      2.6 * faceFeatures.cheek * blob(ax, y, 46, -16, 14, 11) -
       (0.5 + 1.2 * age) * blob(ax, y, 26, -15, 9, 5) -
-      (3 * H.hollow + 2 * age) * blob(ax, y, 43, -55, 13, 16) +
+      (3 * faceFeatures.hollow + 2 * age) * blob(ax, y, 43, -55, 13, 16) +
       3.4 * blob(ax, y, 0, -63, 26, 19) +
       3 * fat * blob(ax, y, 38, -52, 18, 22) +
       2.2 * (age + fat) * blob(ax, y, 36, -91, 10, 9) -
       3 * blob(ax, y, 0, -83.5, 17, 4.6) +
-      3.6 * H.chin * blob(ax, y, 0, -100, 15 * (H.chinW ?? 1), 10)
+      3.6 * faceFeatures.chin * blob(ax, y, 0, -100, 15 * (faceFeatures.chinW ?? 1), 10)
     );
   };
 
-  const point = (row, angle, o, ch) => {
+  const point = (row, angle, output, ch) => {
     slice(row, angle, _slice);
     const side = _slice.x < 0 ? -1 : 1,
       cosA = Math.cos(angle),
@@ -249,7 +249,7 @@ function headFn(features = {}, fine = false) {
     if (face > 0) {
       out = soft(ax, y);
       shade -=
-        0.15 * clamp((H.socket * blob(ax, y, 30, 5, 17, 11)) / 1.2, 0, 1) +
+        0.15 * clamp((faceFeatures.socket * blob(ax, y, 30, 5, 17, 11)) / 1.2, 0, 1) +
         0.1 * bump(y, browLine(ax) - 8, 4.5) * sstep(50, 36, ax) * sstep(6, 14, ax);
       if (age > 0) {
         // the lines of age: furrows across the brow (an aged head's grid has rows for them), the frown between the brows,
@@ -267,18 +267,18 @@ function headFn(features = {}, fine = false) {
         out -= age * (0.5 * furrow + 0.7 * frown + 0.3 * fan);
         shade -= age * (0.17 * furrow + 0.16 * frown + 0.12 * fan);
       }
-      if (H.scar) {
+      if (faceFeatures.scar) {
         // an old wound the skin has closed over: a pale band with a sunken seam down its middle, puckered a little either side
         const [deep, pale] = scarAt(side * ax, y);
         scar = pale;
         out -= deep;
         shade -= SCAR_SHADE * Math.max(0, deep);
       }
-      if (H.wound) {
+      if (faceFeatures.wound) {
         const [deep, torn] = woundAt(side * ax, y);
         raw = torn;
         out -= deep;
-        shade -= (H.healed ? 0.12 : 0.3) * torn * (0.6 + 0.4 * Math.sin(ax * 0.7 + y * 0.9)); // the torn flesh holds shadow in its pits
+        shade -= (faceFeatures.healed ? 0.12 : 0.3) * torn * (0.6 + 0.4 * Math.sin(ax * 0.7 + y * 0.9)); // the torn flesh holds shadow in its pits
       }
       // the lids over the ball of the eye, with the fold above the upper one and, with age, the bag under the lower
       const ex = ax - eyeX,
@@ -327,13 +327,13 @@ function headFn(features = {}, fine = false) {
       // the nose: a ridge down the middle of the face to a rounded tip, wings beside it and the nostrils beneath
       const noseY = 12 + (y - 12) / noseLong;
       if (noseY < 17 && noseY > -52) {
-        const reach = NOSE_OUT(noseY) * (1 + (H.nose - 1) * sstep(8, -6, noseY)) + 2.2 * H.bridge * bump(noseY, -8, 11),
+        const reach = NOSE_OUT(noseY) * (1 + (faceFeatures.nose - 1) * sstep(8, -6, noseY)) + 2.2 * faceFeatures.bridge * bump(noseY, -8, 11),
           t = ax / (NOSE_WIDE(noseY) * (1 + (noseWide - 1) * sstep(-5, -35, noseY))),
           tip = bump(noseY, -36, 7);
         const torn = 1 - Math.max(0.85 * raw, noseLost * sstep(-6, -16, noseY)); // what a wound has torn away of the nose
         if (t < 1) out += reach * lerp(1 - sstep(0.22, 1, t), Math.pow(1 - t * t, 0.75), 0.75 * tip) * torn;
         const wr = ((ax - alaX) / (6.4 * noseWide)) ** 2 + ((noseY + 41.5) / 6.4) ** 2;
-        if (wr < 1) out = smoothMax(out, soft(ax, y) + 7.2 * H.nose * Math.pow(1 - wr, 0.7) * torn, 1.2);
+        if (wr < 1) out = smoothMax(out, soft(ax, y) + 7.2 * faceFeatures.nose * Math.pow(1 - wr, 0.7) * torn, 1.2);
         const nostril = ((ax - 6.6 * noseWide) / (4.2 * noseWide)) ** 2 + ((noseY + 45.4) / 2.2) ** 2;
         if (nostril < 1.6) {
           out -= (fine ? 2.6 : 0.6) * sstep(1.6, 0.4, nostril);
@@ -345,8 +345,8 @@ function headFn(features = {}, fine = false) {
           const { top, foot, wide } = NOSE_HOLE,
             half = wide * (0.35 + 0.65 * sstep(top, foot + 6, noseY)) * noseWide,
             hole = noseLost * sstep(top + 2, top - 4, noseY) * sstep(foot - 2, foot + 3, noseY) * sstep(1, 0.55, ax / half);
-          out -= hole * (H.healed ? NOSE_HOLE.healedDeep : NOSE_HOLE.deep);
-          shade *= 1 - hole * (H.healed ? NOSE_HOLE.healedDark : NOSE_HOLE.dark);
+          out -= hole * (faceFeatures.healed ? NOSE_HOLE.healedDeep : NOSE_HOLE.deep);
+          shade *= 1 - hole * (faceFeatures.healed ? NOSE_HOLE.healedDark : NOSE_HOLE.dark);
           raw = Math.max(raw, hole); // coloured as the wound round it is, raw or scarred
         }
         warm += 0.5 * tip * bump(ax, 0, 13);
@@ -418,17 +418,17 @@ function headFn(features = {}, fine = false) {
       flank =
         1 +
         (-2.8 * (1 + 0.8 * age) * bump(y, 22, 17) * bump(turn, 1.05, 0.33) +
-          1.6 * H.cheek * bump(y, -14, 8) * bump(turn, 1.2, 0.35) +
-          (0.6 + 1.2 * H.jaw) * bump(y, -62, 18) * bump(turn, 1.25, 0.3)) /
+          1.6 * faceFeatures.cheek * bump(y, -14, 8) * bump(turn, 1.2, 0.35) +
+          (0.6 + 1.2 * faceFeatures.jaw) * bump(y, -62, 18) * bump(turn, 1.25, 0.3)) /
           75;
     if (y < -84) {
       shade -= 0.2 * sstep(0.25, -0.35, cosA) * sstep(-84, -98, y); // under the jaw
       if (!dead) beard = Math.max(beard, sstep(-84, -93, y));
     }
     const mid = MIDDLE(y);
-    o.x = side * ax * flank * MM;
-    o.y = y * MM;
-    o.z = (mid + (_slice.z - mid) * flank + out) * MM;
+    output.x = side * ax * flank * MM;
+    output.y = y * MM;
+    output.z = (mid + (_slice.z - mid) * flank + out) * MM;
     if (ch) {
       ch[0] = lip;
       ch[1] = Math.max(0.04, shade);
@@ -441,16 +441,16 @@ function headFn(features = {}, fine = false) {
     }
   };
 
-  const fn = (d, o, ch) => point(d.y * HALF, Math.atan2(d.x, d.z), o, ch);
-  fn.point = point; // by a row of the grid (millimetres up from the middle) and an angle round from the front
+  const sampleHead = (d, output, ch) => point(d.y * HALF, Math.atan2(d.x, d.z), output, ch);
+  sampleHead.point = point; // by a row of the grid (millimetres up from the middle) and an angle round from the front
   // the bare skull at a direction, for what sits over it (hair, hoods, helmets)
-  fn.skull = (d, o) => {
+  sampleHead.skull = (d, output) => {
     const y = d.y * HALF;
     slice(y, Math.atan2(d.x, d.z), _slice);
-    o.set(_slice.x * MM, y * MM, _slice.z * MM);
+    output.set(_slice.x * MM, y * MM, _slice.z * MM);
   };
   // how far out from the bare skull a point lies (metres from the head's middle): 1 on its surface, less within
-  fn.reach = (px, py, pz) => {
+  sampleHead.reach = (px, py, pz) => {
     const up = py / MM,
       y = clamp(up, -HALF, HALF),
       n = SQUARE(y),
@@ -461,10 +461,10 @@ function headFn(features = {}, fine = false) {
     return across;
   };
   // the direction at which the bare skull lies under a point (metres from the head's middle), on the line from the middle
-  // through it: what fn.skull turns into a point again. Hair that lies over the skull finds its place by it.
-  fn.under = (px, py, pz, d) => {
+  // through it: what sampleHead.skull turns into a point again. Hair that lies over the skull finds its place by it.
+  sampleHead.under = (px, py, pz, d) => {
     for (let i = 0; i < UNDER_STEPS; i++) {
-      const k = fn.reach(px, py, pz);
+      const k = sampleHead.reach(px, py, pz);
       px /= k;
       py /= k;
       pz /= k;
@@ -477,7 +477,7 @@ function headFn(features = {}, fine = false) {
   };
   const upAt = t => Math.asin(clamp((upperLid(t) - eyeY) / lidR, -0.95, 0.95)),
     lowAt = t => Math.asin(clamp((lowerLid(t) - eyeY) / lidR, -0.95, 0.95));
-  fn.eye = {
+  sampleHead.eye = {
     x: eyeX * MM,
     y: eyeY * MM,
     z: eyeZ * MM,
@@ -489,11 +489,11 @@ function headFn(features = {}, fine = false) {
       t > 0 && t < 1 ? clamp((upAt(t) - lowAt(t) + 0.06 * Math.sqrt(Math.sin(Math.PI * t))) / (upAt(0.45) - lowAt(0.45) + 0.06), 0, 1) : 0, // the share of it at each point along the lid
     upper: t => upperLid(t) * MM,
   };
-  fn.mouth = { x: mouthX * MM, y: SEAM * MM };
-  fn.one = one ? { y: ONE_EYE.y * MM, z: oneZ * MM, r: ONE_EYE.r * MM, wide: ONE_EYE.wide * MM } : null; // the one eye's ball, if so
-  fn.browLine = x => browLine(x / MM) * MM;
-  fn.scar = (x, y) => (H.scar ? scarAt(x / MM, y / MM)[1] : 0); // how much of a scar there is at a point (metres)
-  return fn;
+  sampleHead.mouth = { x: mouthX * MM, y: SEAM * MM };
+  sampleHead.one = one ? { y: ONE_EYE.y * MM, z: oneZ * MM, r: ONE_EYE.r * MM, wide: ONE_EYE.wide * MM } : null; // the one eye's ball, if so
+  sampleHead.browLine = x => browLine(x / MM) * MM;
+  sampleHead.scar = (x, y) => (faceFeatures.scar ? scarAt(x / MM, y / MM)[1] : 0); // how much of a scar there is at a point (metres)
+  return sampleHead;
 }
 
 export { FURROWS, LID_ABOVE, LID_BELOW, LID_LOW, LID_TOP, SEAM, headFn };

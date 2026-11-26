@@ -5,16 +5,16 @@
  * within that step.
  */
 export function cycleDelta(from, to, period = 1) {
-  const d = to - from;
-  return d - Math.round(d / period) * period;
+  const delta = to - from;
+  return delta - Math.round(delta / period) * period;
 }
 
 // Advance a normalized phase towards its target by at most step. Snap exactly on arrival.
 export function approachPhase(from, to, step, onArrival) {
-  const d = cycleDelta(from, to);
-  if (Math.abs(d) <= step) {
+  const delta = cycleDelta(from, to);
+  if (Math.abs(delta) <= step) {
     onArrival?.();
     return to;
   }
-  return (from + Math.sign(d) * step + 1) % 1;
+  return (from + Math.sign(delta) * step + 1) % 1;
 }

@@ -9,13 +9,13 @@ import { cellKey } from '../math/cell-key.js';
 export function deckTop(list, x, z) {
   let best = -Infinity;
   for (let i = 0; i < list.length; i++) {
-    const d = list[i],
-      dx = x - d.x,
-      dz = z - d.z,
-      lx = dx * d.c - dz * d.s,
-      lz = dx * d.s + dz * d.c;
-    if (Math.abs(lx) <= d.hx && Math.abs(lz) <= d.hz) {
-      const y = d.k ? d.y + lz * d.k : d.y;
+    const deck = list[i],
+      dx = x - deck.x,
+      dz = z - deck.z,
+      lx = dx * deck.c - dz * deck.s,
+      lz = dx * deck.s + dz * deck.c;
+    if (Math.abs(lx) <= deck.hx && Math.abs(lz) <= deck.hz) {
+      const y = deck.k ? deck.y + lz * deck.k : deck.y;
       if (y > best) best = y;
     }
   }
@@ -134,27 +134,27 @@ export function createSpaces(definition, { deckCellSize = 32, colliderCellSize =
       if (!list) break;
       let any = false;
       for (let i = 0; i < list.length; i++) {
-        const c = list[i],
-          dx = x - c.x,
-          dz = z - c.z;
-        if (c.r !== undefined) {
-          const d = Math.hypot(dx, dz),
-            clearance = c.r + r;
-          if (d < clearance && d > 1e-4) {
-            x = c.x + (dx / d) * clearance;
-            z = c.z + (dz / d) * clearance;
+        const collider = list[i],
+          dx = x - collider.x,
+          dz = z - collider.z;
+        if (collider.r !== undefined) {
+          const distance = Math.hypot(dx, dz),
+            clearance = collider.r + r;
+          if (distance < clearance && distance > 1e-4) {
+            x = collider.x + (dx / distance) * clearance;
+            z = collider.z + (dz / distance) * clearance;
             any = true;
           }
         } else {
-          let lx = dx * c.c - dz * c.s,
-            lz = dx * c.s + dz * c.c;
-          const px = c.hx + r - Math.abs(lx),
-            pz = c.hz + r - Math.abs(lz);
+          let lx = dx * collider.c - dz * collider.s,
+            lz = dx * collider.s + dz * collider.c;
+          const px = collider.hx + r - Math.abs(lx),
+            pz = collider.hz + r - Math.abs(lz);
           if (px > 0 && pz > 0) {
-            if (px < pz) lx = (lx < 0 ? -1 : 1) * (c.hx + r);
-            else lz = (lz < 0 ? -1 : 1) * (c.hz + r);
-            x = c.x + lx * c.c + lz * c.s;
-            z = c.z - lx * c.s + lz * c.c;
+            if (px < pz) lx = (lx < 0 ? -1 : 1) * (collider.hx + r);
+            else lz = (lz < 0 ? -1 : 1) * (collider.hz + r);
+            x = collider.x + lx * collider.c + lz * collider.s;
+            z = collider.z - lx * collider.s + lz * collider.c;
             any = true;
           }
         }
@@ -172,8 +172,8 @@ export function createSpaces(definition, { deckCellSize = 32, colliderCellSize =
   function steer(x, z, want, step, r, lean = 1) {
     if (collide(x, z, r)) return want;
     for (let i = 0; i < turns.length; i++) {
-      const a = want + turns[i] * lean;
-      if (!collide(x + Math.sin(a) * step, z + Math.cos(a) * step, r)) return a;
+      const heading = want + turns[i] * lean;
+      if (!collide(x + Math.sin(heading) * step, z + Math.cos(heading) * step, r)) return heading;
     }
     return undefined;
   }

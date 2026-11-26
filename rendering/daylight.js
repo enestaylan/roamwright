@@ -22,11 +22,11 @@ export function createSunMoonCycle({
       .set(Math.cos(moonAngle) * moonEast, Math.sin(moonAngle) * moonRise, moonOffset + moonTilt * Math.sin(moonAngle))
       .normalize();
     if (moonTurn) {
-      const c = Math.cos(moonTurn),
+      const cosMoonTurn = Math.cos(moonTurn),
         s = Math.sin(moonTurn);
       const { x, z } = moon;
-      moon.x = x * c + z * s;
-      moon.z = z * c - x * s;
+      moon.x = x * cosMoonTurn + z * s;
+      moon.z = z * cosMoonTurn - x * s;
     }
     return (1 - Math.cos(elongation)) / 2;
   };

@@ -20,8 +20,8 @@ export function createDeckSurface(decks, terrain, x0, z0, size, cellSize) {
     while (filed < decks.length) {
       const deck = decks[filed++], radius = Math.hypot(deck.hx, deck.hz);
       for (let row = cell(deck.z - radius - z0); row <= cell(deck.z + radius - z0); row++)
-        for (let col = cell(deck.x - radius - x0); col <= cell(deck.x + radius - x0); col++) {
-          const key = row * side + col;
+        for (let column = cell(deck.x - radius - x0); column <= cell(deck.x + radius - x0); column++) {
+          const key = row * side + column;
           if (!indices[key]) indices[key] = lists.push([]);
           lists[indices[key] - 1].push(deck);
         }

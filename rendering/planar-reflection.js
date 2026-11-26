@@ -32,7 +32,7 @@ export function createPlanarReflection({ camera, renderer, scene, drawnSize, wat
       x1 = -1,
       y0 = 1,
       y1 = -1;
-    for (let c = 0; c < cells.length; c += 2) {
+    for (let cellOffset = 0; cellOffset < cells.length; cellOffset += 2) {
       let left = true, // is the whole cell off one side of the picture?
         right = true,
         below = true,
@@ -54,12 +54,12 @@ export function createPlanarReflection({ camera, renderer, scene, drawnSize, wat
         by = Math.max(by, y);
       };
       for (let k = 0; k < 4; k++)
-        _corner[k].set(cells[c] + (k === 1 || k === 2 ? cellSize : 0), level, cells[c + 1] + (k > 1 ? cellSize : 0), 1).applyMatrix4(view);
+        _corner[k].set(cells[cellOffset] + (k === 1 || k === 2 ? cellSize : 0), level, cells[cellOffset + 1] + (k > 1 ? cellSize : 0), 1).applyMatrix4(view);
       for (let k = 0; k < 4; k++) {
-        const a = _corner[k],
-          b = _corner[(k + 1) % 4];
-        if (a.w > IN_FRONT) take(a);
-        if (a.w > IN_FRONT !== b.w > IN_FRONT) take(_cut.lerpVectors(a, b, (IN_FRONT - a.w) / (b.w - a.w))); // where the edge passes the camera's plane
+        const corner = _corner[k],
+          nextCorner = _corner[(k + 1) % 4];
+        if (corner.w > IN_FRONT) take(corner);
+        if (corner.w > IN_FRONT !== nextCorner.w > IN_FRONT) take(_cut.lerpVectors(corner, nextCorner, (IN_FRONT - corner.w) / (nextCorner.w - corner.w))); // where the edge passes the camera's plane
       }
       if (bx < ax || left || right || below || above) continue;
       x0 = Math.min(x0, ax);
@@ -76,30 +76,30 @@ export function createPlanarReflection({ camera, renderer, scene, drawnSize, wat
   // Fits the mirror's camera and target to `part`: whole pixels of the target, and a projection that fills just those, so each
   // reflected thing lands on the pixel it would have in the whole picture.
   function fitToPart(projection, target) {
-    const w = target.width,
-      h = target.height,
-      px0 = Math.floor(((part.x0 + 1) / 2) * w),
-      px1 = Math.ceil(((part.x1 + 1) / 2) * w),
-      py0 = Math.floor(((part.y0 + 1) / 2) * h),
-      py1 = Math.ceil(((part.y1 + 1) / 2) * h),
-      x0 = (2 * px0) / w - 1,
-      x1 = (2 * px1) / w - 1,
-      y0 = (2 * py0) / h - 1,
-      y1 = (2 * py1) / h - 1,
-      e = projection.elements;
+    const width = target.width,
+      height = target.height,
+      px0 = Math.floor(((part.x0 + 1) / 2) * width),
+      px1 = Math.ceil(((part.x1 + 1) / 2) * width),
+      py0 = Math.floor(((part.y0 + 1) / 2) * height),
+      py1 = Math.ceil(((part.y1 + 1) / 2) * height),
+      x0 = (2 * px0) / width - 1,
+      x1 = (2 * px1) / width - 1,
+      y0 = (2 * py0) / height - 1,
+      y1 = (2 * py1) / height - 1,
+      projectionElements = projection.elements;
     for (let col = 0; col < 16; col += 4) {
-      e[col] = (2 * e[col] - (x0 + x1) * e[col + 3]) / (x1 - x0);
-      e[col + 1] = (2 * e[col + 1] - (y0 + y1) * e[col + 3]) / (y1 - y0);
+      projectionElements[col] = (2 * projectionElements[col] - (x0 + x1) * projectionElements[col + 3]) / (x1 - x0);
+      projectionElements[col + 1] = (2 * projectionElements[col + 1] - (y0 + y1) * projectionElements[col + 3]) / (y1 - y0);
     }
     target.viewport.set(px0, py0, px1 - px0, py1 - py0);
     target.scissor.set(px0, py0, px1 - px0, py1 - py0);
   }
   function sizeMirror() {
     // half the size the world is drawn at each way: where the quality fit draws it smaller and upscales it, the mirror shrinks with it
-    const [w, h] = drawnSize();
-    if (mirror.rt) mirror.rt.setSize(Math.max(minSize, Math.round(w * scale)), Math.max(minSize, Math.round(h * scale)));
+    const [width, height] = drawnSize();
+    if (mirror.rt) mirror.rt.setSize(Math.max(minSize, Math.round(width * scale)), Math.max(minSize, Math.round(height * scale)));
   }
-  function renderMirror(u, wl, k, unseen, frame) {
+  function renderMirror(u, waterLevel, k, unseen, frame) {
     const M = mirror, cp = camera.position;
     if (M.off) k = 0; // debug switch, for measuring what the mirror costs
     u.uReflOn.value = k;
@@ -110,28 +110,28 @@ export function createPlanarReflection({ camera, renderer, scene, drawnSize, wat
       u.uRefl.value = M.rt.texture;
       sizeMirror();
     }
-    const c = M.cam,
-      o = M.o.set(0, wl, 0);
+    const reflectionCamera = M.cam,
+      o = M.o.set(0, waterLevel, 0);
     M.a.subVectors(o, cp).reflect(M.n).negate().add(o);
-    c.position.copy(M.a);
+    reflectionCamera.position.copy(M.a);
     M.rot.extractRotation(camera.matrixWorld);
     M.b.set(0, 0, -1).applyMatrix4(M.rot).add(cp);
     M.a.subVectors(o, M.b).reflect(M.n).negate().add(o);
-    c.up.set(0, 1, 0).applyMatrix4(M.rot).reflect(M.n);
-    c.lookAt(M.a);
-    c.near = camera.near;
-    c.far = camera.far;
-    c.updateMatrixWorld();
-    c.projectionMatrix.copy(camera.projectionMatrix);
+    reflectionCamera.up.set(0, 1, 0).applyMatrix4(M.rot).reflect(M.n);
+    reflectionCamera.lookAt(M.a);
+    reflectionCamera.near = camera.near;
+    reflectionCamera.far = camera.far;
+    reflectionCamera.updateMatrixWorld();
+    reflectionCamera.projectionMatrix.copy(camera.projectionMatrix);
     u.uReflM.value
       .set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
-      .multiply(c.projectionMatrix)
-      .multiply(c.matrixWorldInverse);
-    const whole = !findWaterPart(M.m.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse), wl); // no cell found where water was seen: draw it all
+      .multiply(reflectionCamera.projectionMatrix)
+      .multiply(reflectionCamera.matrixWorldInverse);
+    const whole = !findWaterPart(M.m.multiplyMatrices(reflectionCamera.projectionMatrix, reflectionCamera.matrixWorldInverse), waterLevel); // no cell found where water was seen: draw it all
     // tilt the near plane onto the water, so nothing under the surface gets into the mirror
-    M.plane.setFromNormalAndCoplanarPoint(M.n, M.o.set(0, wl - 0.05, 0)).applyMatrix4(c.matrixWorldInverse);
+    M.plane.setFromNormalAndCoplanarPoint(M.n, M.o.set(0, waterLevel - 0.05, 0)).applyMatrix4(reflectionCamera.matrixWorldInverse);
     const cl = M.clip.set(M.plane.normal.x, M.plane.normal.y, M.plane.normal.z, M.plane.constant),
-      pe = c.projectionMatrix.elements,
+      pe = reflectionCamera.projectionMatrix.elements,
       q = M.q;
     q.x = (Math.sign(cl.x) + pe[8]) / pe[0];
     q.y = (Math.sign(cl.y) + pe[9]) / pe[5];
@@ -155,11 +155,11 @@ export function createPlanarReflection({ camera, renderer, scene, drawnSize, wat
       renderer.clear();
       renderer.setClearColor(_colour, alpha);
       if (!whole) {
-        fitToPart(c.projectionMatrix, M.rt);
+        fitToPart(reflectionCamera.projectionMatrix, M.rt);
         M.rt.scissorTest = true;
         renderer.setRenderTarget(M.rt);
       }
-      renderer.render(scene, c);
+      renderer.render(scene, reflectionCamera);
     } finally {
       renderer.setClearColor(_colour, alpha);
       renderer.setRenderTarget(previous, face, mip);

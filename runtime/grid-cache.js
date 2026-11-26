@@ -49,7 +49,7 @@ export function createGridCache({ database, store, build, revisions, hintPrefix 
         request.onerror = () => reject(request.error);
       });
       if (!Array.isArray(kept) || kept.length !== arrays.length ||
-          !kept.every((a,i) => ArrayBuffer.isView(a) && a.constructor === arrays[i].constructor && a.length === arrays[i].length)) return false;
+          !kept.every((cachedArray,i) => ArrayBuffer.isView(cachedArray) && cachedArray.constructor === arrays[i].constructor && cachedArray.length === arrays[i].length)) return false;
       arrays.forEach((array,i) => array.set(kept[i]));
       return true;
     } catch {

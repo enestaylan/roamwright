@@ -30,16 +30,16 @@ export class PointBuckets {
   find(x, z, reach, test, widen = false) {
     this.catchUp();
     const { cell, cells } = this,
-      r = reach + (widen ? this.widest : 0),
-      i1 = Math.floor((x + r) / cell),
-      j0 = Math.floor((z - r) / cell),
-      j1 = Math.floor((z + r) / cell),
-      i0 = Math.floor((x - r) / cell);
+      searchRadius = reach + (widen ? this.widest : 0),
+      i1 = Math.floor((x + searchRadius) / cell),
+      j0 = Math.floor((z - searchRadius) / cell),
+      j1 = Math.floor((z + searchRadius) / cell),
+      i0 = Math.floor((x - searchRadius) / cell);
     if (!Number.isSafeInteger(i0) || !Number.isSafeInteger(i1) || !Number.isSafeInteger(j0) || !Number.isSafeInteger(j1))
       throw new RangeError('Query exceeds the supported grid coordinates');
-    for (let i = i0; i <= i1; i++)
-      for (let j = j0; j <= j1; j++) {
-        const held = cells.get(cellKey(i, j));
+    for (let column = i0; column <= i1; column++)
+      for (let row = j0; row <= j1; row++) {
+        const held = cells.get(cellKey(column, row));
         if (held) for (const item of held) if (test(item)) return item;
       }
     return undefined;

@@ -17,12 +17,12 @@ function cubic(x0, x1, x2, x3, dt0, dt1, dt2, t) {
     tt = t * t;
   return x1 + t1 * t + c2 * tt + c3 * (tt * t);
 }
-const knot = (a, b) => Math.pow((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]), 0.25);
+const knot = (startPoint, endPoint) => Math.pow((startPoint[0] - endPoint[0]) * (startPoint[0] - endPoint[0]) + (startPoint[1] - endPoint[1]) * (startPoint[1] - endPoint[1]), 0.25);
 const _before = [0, 0],
   _after = [0, 0];
-// The point of the curve through pts at t in 0..1, where t runs evenly from point to point.
-function curvePoint(pts, t) {
-  const count = pts.length,
+// The point of the curve through the control points at t in 0..1, where t runs evenly from point to point.
+function curvePoint(controlPoints, t) {
+  const count = controlPoints.length,
     at = (count - 1) * t;
   let i = Math.floor(at),
     weight = at - i;
@@ -31,17 +31,17 @@ function curvePoint(pts, t) {
     weight = 1;
   }
   // past either end the line is carried on by its last step
-  const first = pts[0],
-    last = pts[count - 1];
-  _after[0] = last[0] - pts[count - 2][0] + last[0];
-  _after[1] = last[1] - pts[count - 2][1] + last[1];
-  _before[0] = first[0] - pts[1][0] + first[0];
-  _before[1] = first[1] - pts[1][1] + first[1];
+  const first = controlPoints[0],
+    last = controlPoints[count - 1];
+  _after[0] = last[0] - controlPoints[count - 2][0] + last[0];
+  _after[1] = last[1] - controlPoints[count - 2][1] + last[1];
+  _before[0] = first[0] - controlPoints[1][0] + first[0];
+  _before[1] = first[1] - controlPoints[1][1] + first[1];
   const atEnd = i + 2 >= count,
-    p0 = i > 0 ? pts[i - 1] : atEnd ? _after : _before,
-    p1 = pts[i],
-    p2 = pts[i + 1],
-    p3 = atEnd ? _after : pts[i + 2];
+    p0 = i > 0 ? controlPoints[i - 1] : atEnd ? _after : _before,
+    p1 = controlPoints[i],
+    p2 = controlPoints[i + 1],
+    p3 = atEnd ? _after : controlPoints[i + 2];
   let dt0 = knot(p0, p1),
     dt1 = knot(p1, p2),
     dt2 = knot(p2, p3);
@@ -51,12 +51,12 @@ function curvePoint(pts, t) {
   return [cubic(p0[0], p1[0], p2[0], p3[0], dt0, dt1, dt2, weight), cubic(p0[1], p1[1], p2[1], p3[1], dt0, dt1, dt2, weight)];
 }
 // The curve's length from its start to each of ARC_STEPS + 1 points along it.
-function arcLengths(pts) {
+function arcLengths(controlPoints) {
   const lengths = [0];
-  let last = curvePoint(pts, 0),
+  let last = curvePoint(controlPoints, 0),
     sum = 0;
-  for (let p = 1; p <= ARC_STEPS; p++) {
-    const point = curvePoint(pts, p / ARC_STEPS);
+  for (let stepIndex = 1; stepIndex <= ARC_STEPS; stepIndex++) {
+    const point = curvePoint(controlPoints, stepIndex / ARC_STEPS);
     sum += Math.sqrt((point[0] - last[0]) * (point[0] - last[0]) + (point[1] - last[1]) * (point[1] - last[1]));
     lengths.push(sum);
     last = point;
@@ -81,12 +81,12 @@ function shareToT(lengths, u) {
   if (lengths[high] === target) return high / ARC_STEPS;
   return (high + (target - lengths[high]) / (lengths[high + 1] - lengths[high])) / ARC_STEPS;
 }
-// The line through pts as a smooth curve of evenly spaced points, about `spacing` apart.
-function spacedCurve(pts, spacing) {
-  const lengths = arcLengths(pts),
+// The line through the control points as a smooth curve of evenly spaced points, about `spacing` apart.
+function spacedCurve(controlPoints, spacing) {
+  const lengths = arcLengths(controlPoints),
     steps = Math.max(2, Math.round(lengths[ARC_STEPS] / spacing)),
     points = [];
-  for (let d = 0; d <= steps; d++) points.push(curvePoint(pts, shareToT(lengths, d / steps)));
+  for (let stepIndex = 0; stepIndex <= steps; stepIndex++) points.push(curvePoint(controlPoints, shareToT(lengths, stepIndex / steps)));
   return points;
 }
 

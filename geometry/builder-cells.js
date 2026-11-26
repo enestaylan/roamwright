@@ -4,33 +4,33 @@ import { sphereOf } from './builder.js';
 // parts by their x-z bounds centres, separating parts smaller than smallSize on every
 // axis. Preserve first-encounter order within each cell and among the cells.
 // The result owns compact position, normal, colour and optional scalar tag arrays.
-export function cutBuilderCells(gb, cellSize, smallSize = 0) {
+export function cutBuilderCells(builder, cellSize, smallSize = 0) {
   if (!Number.isFinite(cellSize) || cellSize <= 0) throw new RangeError('Cell size must be positive and finite');
-  if (!gb.pb || gb.indexed || gb.sk) throw new TypeError('Expected marked, unindexed static geometry');
-  const starts = gb.pb,
-    bounds = gb.bounds,
+  if (!builder.pb || builder.indexed || builder.sk) throw new TypeError('Expected marked, unindexed static geometry');
+  const starts = builder.pb,
+    bounds = builder.bounds,
     cells = new Map(); // key -> { small, runs: [from, to, ...], numbers }
-  for (let j = 0; j < starts.length; j++) {
-    const a = starts[j],
-      b = j + 1 < starts.length ? starts[j + 1] : gb.count;
-    if (b <= a) continue;
-    const o = j * 6,
-      small = Math.max(bounds[o + 1] - bounds[o], bounds[o + 3] - bounds[o + 2], bounds[o + 5] - bounds[o + 4]) < smallSize,
+  for (let partIndex = 0; partIndex < starts.length; partIndex++) {
+    const start = starts[partIndex],
+      end = partIndex + 1 < starts.length ? starts[partIndex + 1] : builder.count;
+    if (end <= start) continue;
+    const boundsOffset = partIndex * 6,
+      small = Math.max(bounds[boundsOffset + 1] - bounds[boundsOffset], bounds[boundsOffset + 3] - bounds[boundsOffset + 2], bounds[boundsOffset + 5] - bounds[boundsOffset + 4]) < smallSize,
       key =
-        Math.floor((bounds[o] + bounds[o + 1]) / 2 / cellSize) + ':' + Math.floor((bounds[o + 4] + bounds[o + 5]) / 2 / cellSize) + (small ? 's' : '');
+        Math.floor((bounds[boundsOffset] + bounds[boundsOffset + 1]) / 2 / cellSize) + ':' + Math.floor((bounds[boundsOffset + 4] + bounds[boundsOffset + 5]) / 2 / cellSize) + (small ? 's' : '');
     let cell = cells.get(key);
     if (!cell) cells.set(key, (cell = { small, runs: [], numbers: 0 }));
-    cell.runs.push(a, b);
-    cell.numbers += b - a;
+    cell.runs.push(start, end);
+    cell.numbers += end - start;
   }
-  const { positions, normalBytes, colourBytes, tg } = gb;
+  const { positions, normalBytes, colourBytes, tg } = builder;
   return [...cells.values()].map(({ small, runs, numbers }) => {
     const parts = { position: new Float32Array(numbers), normal: new Int8Array(numbers), color: new Uint8Array(numbers) };
     if (tg) parts.aTag = new Float32Array(numbers / 3);
     let at = 0;
-    for (let r = 0; r < runs.length; r += 2) {
-      const from = runs[r],
-        to = runs[r + 1];
+    for (let runOffset = 0; runOffset < runs.length; runOffset += 2) {
+      const from = runs[runOffset],
+        to = runs[runOffset + 1];
       parts.position.set(positions.subarray(from, to), at);
       parts.normal.set(normalBytes.subarray(from, to), at);
       parts.color.set(colourBytes.subarray(from, to), at);

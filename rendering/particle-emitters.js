@@ -16,33 +16,33 @@ import { TAU, clamp } from '../math/scalar.js';
  *   not a burning building's.
  */
 export function createParticleEmitters({ spawn, put, random = Math.random, hearth = 4 }) {
-  const rnd = random;
+  const randomValue = random;
 
   /**
    * One wisp of mist lying low over a disc of radius `site.r` about (site.x, site.z): broad pale veils, thickest at night (`day`
    * 0 at night, 1 by day), drifting slowly. `groundAt(x, z)` is the ground's height there. site.size: the wisp's size.
    */
   function mist(site, groundAt, day, pool) {
-    const a = rnd() * TAU,
-      d = Math.sqrt(rnd()) * site.r,
-      x = site.x + Math.cos(a) * d,
-      z = site.z + Math.sin(a) * d,
-      g = 0.62 + rnd() * 0.12,
+    const angle = randomValue() * TAU,
+      radialDistance = Math.sqrt(randomValue()) * site.r,
+      x = site.x + Math.cos(angle) * radialDistance,
+      z = site.z + Math.sin(angle) * radialDistance,
+      brightness = 0.62 + randomValue() * 0.12,
       thick = 0.45 + 0.55 * (1 - day);
     spawn.x = x;
-    spawn.y = groundAt(x, z) + 0.25 + rnd() * 0.6;
+    spawn.y = groundAt(x, z) + 0.25 + randomValue() * 0.6;
     spawn.z = z;
-    spawn.vx = (rnd() - 0.5) * 0.25;
-    spawn.vy = 0.02 + rnd() * 0.04;
-    spawn.vz = (rnd() - 0.5) * 0.25;
-    spawn.life = 12 + rnd() * 8;
-    spawn.size = site.size * (0.7 + rnd() * 0.6);
-    spawn.r = g;
-    spawn.g = g * 1.02;
-    spawn.b = g * 1.06;
+    spawn.vx = (randomValue() - 0.5) * 0.25;
+    spawn.vy = 0.02 + randomValue() * 0.04;
+    spawn.vz = (randomValue() - 0.5) * 0.25;
+    spawn.life = 12 + randomValue() * 8;
+    spawn.size = site.size * (0.7 + randomValue() * 0.6);
+    spawn.r = brightness;
+    spawn.g = brightness * 1.02;
+    spawn.b = brightness * 1.06;
     spawn.drag = 0.02;
     spawn.grav = 0;
-    spawn.e1 = (0.1 + rnd() * 0.08) * thick;
+    spawn.e1 = (0.1 + randomValue() * 0.08) * thick;
     spawn.e2 = 0;
     spawn.e3 = 0.12;
     put(pool);
@@ -56,46 +56,46 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
   function smoke(site, pool) {
     const S = site.size,
       small = 1 - clamp(S / hearth, 0, 1),
-      g = (0.1 + rnd() * 0.17) * (site.dark ?? 1) * (1 + 1.8 * small),
+      brightness = (0.1 + randomValue() * 0.17) * (site.dark ?? 1) * (1 + 1.8 * small),
       brief = 1 - 0.6 * small,
       j = S * 0.16,
       heat = site.heat ?? 0.08,
       up = Math.sqrt(S / 8),
       thin = site.thin ?? 1;
-    if (rnd() < 0.24) {
-      spawn.x = site.x + (rnd() - 0.5) * j;
+    if (randomValue() < 0.24) {
+      spawn.x = site.x + (randomValue() - 0.5) * j;
       spawn.y = site.y + S * 0.2;
-      spawn.z = site.z + (rnd() - 0.5) * j;
-      spawn.vx = (rnd() - 0.5) * 0.6;
-      spawn.vy = (2.3 + rnd() * 1.5) * up;
-      spawn.vz = (rnd() - 0.5) * 0.6;
-      spawn.life = (14 + rnd() * 9) * brief;
-      spawn.size = S * (0.4 + rnd() * 0.3);
-      spawn.r = g * 1.3;
-      spawn.g = g * 1.3;
-      spawn.b = g * 1.36;
+      spawn.z = site.z + (randomValue() - 0.5) * j;
+      spawn.vx = (randomValue() - 0.5) * 0.6;
+      spawn.vy = (2.3 + randomValue() * 1.5) * up;
+      spawn.vz = (randomValue() - 0.5) * 0.6;
+      spawn.life = (14 + randomValue() * 9) * brief;
+      spawn.size = S * (0.4 + randomValue() * 0.3);
+      spawn.r = brightness * 1.3;
+      spawn.g = brightness * 1.3;
+      spawn.b = brightness * 1.36;
       spawn.drag = 0.1;
       spawn.grav = 0.1;
-      spawn.e1 = (0.34 + rnd() * 0.2) * thin * brief;
+      spawn.e1 = (0.34 + randomValue() * 0.2) * thin * brief;
       spawn.e2 = heat * 0.5;
-      spawn.e3 = 1.1 + rnd() * 0.4;
+      spawn.e3 = 1.1 + randomValue() * 0.4;
     } else {
-      spawn.x = site.x + (rnd() - 0.5) * j;
+      spawn.x = site.x + (randomValue() - 0.5) * j;
       spawn.y = site.y;
-      spawn.z = site.z + (rnd() - 0.5) * j;
-      spawn.vx = (rnd() - 0.5) * 0.9;
-      spawn.vy = (2.0 + rnd() * 1.7) * up;
-      spawn.vz = (rnd() - 0.5) * 0.9;
-      spawn.life = 5.5 + rnd() * 4.5;
-      spawn.size = S * (0.22 + rnd() * 0.2);
-      spawn.r = g;
-      spawn.g = g;
-      spawn.b = g * 1.05;
+      spawn.z = site.z + (randomValue() - 0.5) * j;
+      spawn.vx = (randomValue() - 0.5) * 0.9;
+      spawn.vy = (2.0 + randomValue() * 1.7) * up;
+      spawn.vz = (randomValue() - 0.5) * 0.9;
+      spawn.life = 5.5 + randomValue() * 4.5;
+      spawn.size = S * (0.22 + randomValue() * 0.2);
+      spawn.r = brightness;
+      spawn.g = brightness;
+      spawn.b = brightness * 1.05;
       spawn.drag = 0.12;
       spawn.grav = 0.12;
-      spawn.e1 = (0.5 + rnd() * 0.3) * thin;
+      spawn.e1 = (0.5 + randomValue() * 0.3) * thin;
       spawn.e2 = heat;
-      spawn.e3 = 0.9 + rnd() * 0.6;
+      spawn.e3 = 0.9 + randomValue() * 0.6;
     }
     put(pool);
   }
@@ -109,16 +109,16 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
     const z = site.size,
       sq = Math.sqrt(z),
       hot = site.hot ?? 1;
-    spawn.x = site.x + (rnd() - 0.5) * z * 0.9;
-    spawn.y = site.y + rnd() * 0.12 * z;
-    spawn.z = site.z + (rnd() - 0.5) * z * 0.9;
-    spawn.vx = (rnd() - 0.5) * 0.35;
-    spawn.vy = (0.5 + rnd() * 0.9) * sq;
-    spawn.vz = (rnd() - 0.5) * 0.35;
-    spawn.life = 0.45 + rnd() * 0.5;
-    spawn.size = z * (0.6 + rnd() * 0.6);
+    spawn.x = site.x + (randomValue() - 0.5) * z * 0.9;
+    spawn.y = site.y + randomValue() * 0.12 * z;
+    spawn.z = site.z + (randomValue() - 0.5) * z * 0.9;
+    spawn.vx = (randomValue() - 0.5) * 0.35;
+    spawn.vy = (0.5 + randomValue() * 0.9) * sq;
+    spawn.vz = (randomValue() - 0.5) * 0.35;
+    spawn.life = 0.45 + randomValue() * 0.5;
+    spawn.size = z * (0.6 + randomValue() * 0.6);
     spawn.r = 1.3 * hot;
-    spawn.g = (0.42 + rnd() * 0.2) * hot;
+    spawn.g = (0.42 + randomValue() * 0.2) * hot;
     spawn.b = 0.065 * hot;
     spawn.drag = 0.6;
     spawn.grav = 0.8;
@@ -126,15 +126,15 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
     spawn.e2 = 0;
     spawn.e3 = 0.12;
     put(add);
-    if (rnd() < (site.sparks ?? 0.32)) {
-      spawn.x = site.x + (rnd() - 0.5) * z * 0.6;
+    if (randomValue() < (site.sparks ?? 0.32)) {
+      spawn.x = site.x + (randomValue() - 0.5) * z * 0.6;
       spawn.y = site.y + 0.5 * z;
-      spawn.z = site.z + (rnd() - 0.5) * z * 0.6;
-      spawn.vx = (rnd() - 0.5) * 1.6 * sq;
-      spawn.vy = (1.8 + rnd() * 2.6) * sq;
-      spawn.vz = (rnd() - 0.5) * 1.6 * sq;
-      spawn.life = 1.4 + rnd() * 2.6;
-      spawn.size = (0.035 + rnd() * 0.04) * sq;
+      spawn.z = site.z + (randomValue() - 0.5) * z * 0.6;
+      spawn.vx = (randomValue() - 0.5) * 1.6 * sq;
+      spawn.vy = (1.8 + randomValue() * 2.6) * sq;
+      spawn.vz = (randomValue() - 0.5) * 1.6 * sq;
+      spawn.life = 1.4 + randomValue() * 2.6;
+      spawn.size = (0.035 + randomValue() * 0.04) * sq;
       spawn.r = 4.6;
       spawn.g = 1.7;
       spawn.b = 0.36;
@@ -145,14 +145,14 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
       spawn.e3 = 0.7;
       put(add);
     }
-    if (rnd() < (site.halo ?? 0.1)) {
+    if (randomValue() < (site.halo ?? 0.1)) {
       spawn.x = site.x;
       spawn.y = site.y + z * 1.7;
       spawn.z = site.z;
       spawn.vx = 0;
       spawn.vy = 0.4;
       spawn.vz = 0;
-      spawn.life = 0.5 + rnd() * 0.5;
+      spawn.life = 0.5 + randomValue() * 0.5;
       spawn.size = z * 3.2;
       spawn.r = 0.3 * hot;
       spawn.g = 0.09 * hot;
@@ -161,41 +161,41 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
       spawn.grav = 0;
       put(add);
     }
-    if (rnd() < (site.soot ?? 0.14)) {
+    if (randomValue() < (site.soot ?? 0.14)) {
       if (site.wood) {
-        const g = 0.36 + rnd() * 0.16;
-        spawn.x = site.x + (rnd() - 0.5) * z * 0.4;
+        const brightness = 0.36 + randomValue() * 0.16;
+        spawn.x = site.x + (randomValue() - 0.5) * z * 0.4;
         spawn.y = site.y + z * 1.3;
-        spawn.z = site.z + (rnd() - 0.5) * z * 0.4;
-        spawn.vx = (rnd() - 0.5) * 0.3;
-        spawn.vy = (1.3 + rnd() * 0.9) * sq;
-        spawn.vz = (rnd() - 0.5) * 0.3;
-        spawn.life = (6 + rnd() * 5) * Math.sqrt(sq);
-        spawn.size = z * (0.9 + rnd() * 0.8);
-        spawn.r = g;
-        spawn.g = g * 1.02;
-        spawn.b = g * 1.08;
+        spawn.z = site.z + (randomValue() - 0.5) * z * 0.4;
+        spawn.vx = (randomValue() - 0.5) * 0.3;
+        spawn.vy = (1.3 + randomValue() * 0.9) * sq;
+        spawn.vz = (randomValue() - 0.5) * 0.3;
+        spawn.life = (6 + randomValue() * 5) * Math.sqrt(sq);
+        spawn.size = z * (0.9 + randomValue() * 0.8);
+        spawn.r = brightness;
+        spawn.g = brightness * 1.02;
+        spawn.b = brightness * 1.08;
         spawn.drag = 0.15;
         spawn.grav = 0.15;
-        spawn.e1 = 0.13 + rnd() * 0.11;
+        spawn.e1 = 0.13 + randomValue() * 0.11;
         spawn.e2 = 0.35;
         spawn.e3 = 1.3;
       } else {
-        const g = 0.04 + rnd() * 0.04;
-        spawn.x = site.x + (rnd() - 0.5) * z * 0.5;
+        const brightness = 0.04 + randomValue() * 0.04;
+        spawn.x = site.x + (randomValue() - 0.5) * z * 0.5;
         spawn.y = site.y + z * 1.5;
-        spawn.z = site.z + (rnd() - 0.5) * z * 0.5;
-        spawn.vx = (rnd() - 0.5) * 0.4;
-        spawn.vy = (1.6 + rnd() * 1.2) * sq;
-        spawn.vz = (rnd() - 0.5) * 0.4;
-        spawn.life = (4 + rnd() * 3.5) * Math.sqrt(sq);
-        spawn.size = z * (0.8 + rnd() * 0.7);
-        spawn.r = g;
-        spawn.g = g * 0.95;
-        spawn.b = g * 0.9;
+        spawn.z = site.z + (randomValue() - 0.5) * z * 0.5;
+        spawn.vx = (randomValue() - 0.5) * 0.4;
+        spawn.vy = (1.6 + randomValue() * 1.2) * sq;
+        spawn.vz = (randomValue() - 0.5) * 0.4;
+        spawn.life = (4 + randomValue() * 3.5) * Math.sqrt(sq);
+        spawn.size = z * (0.8 + randomValue() * 0.7);
+        spawn.r = brightness;
+        spawn.g = brightness * 0.95;
+        spawn.b = brightness * 0.9;
         spawn.drag = 0.2;
         spawn.grav = 0.2;
-        spawn.e1 = 0.42 + rnd() * 0.28;
+        spawn.e1 = 0.42 + randomValue() * 0.28;
         spawn.e2 = 0.6;
         spawn.e3 = 1.2;
       }
@@ -213,11 +213,11 @@ export function createParticleEmitters({ spawn, put, random = Math.random, heart
  * strength.
  */
 export function shakeOffset(out, strength, left, duration, reach = 0.18) {
-  const a = strength * reach * Math.max(0, left / duration) ** 1.5,
+  const amplitude = strength * reach * Math.max(0, left / duration) ** 1.5,
     u = left;
   return out.set(
-    a * (Math.sin(u * 13.1) * 0.6 + Math.sin(u * 19.7 + 1.3) * 0.4),
-    a * (Math.sin(u * 11.3 + 2.1) * 0.6 + Math.sin(u * 21.9) * 0.4) * 0.7,
-    a * (Math.sin(u * 15.5 + 0.7) * 0.6 + Math.sin(u * 9.7 + 2.9) * 0.4),
+    amplitude * (Math.sin(u * 13.1) * 0.6 + Math.sin(u * 19.7 + 1.3) * 0.4),
+    amplitude * (Math.sin(u * 11.3 + 2.1) * 0.6 + Math.sin(u * 21.9) * 0.4) * 0.7,
+    amplitude * (Math.sin(u * 15.5 + 0.7) * 0.6 + Math.sin(u * 9.7 + 2.9) * 0.4),
   );
 }

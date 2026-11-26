@@ -18,21 +18,21 @@ export function heightfieldSampler(geometry, outside) {
   const depth = positions.getZ(rows * (columns + 1)) - z0;
   if (!(width > 0 && depth > 0)) throw new RangeError('Expected a regular heightfield in the X/Z plane');
   return (x, z) => {
-    const fx = (x - x0) / width * columns;
-    const fz = (z - z0) / depth * rows;
-    if (fx < 0 || fz < 0 || fx > columns || fz > rows) return outside?.(x, z);
-    const col = Math.min(Math.floor(fx), columns - 1);
-    const row = Math.min(Math.floor(fz), rows - 1);
-    const u = fx - col, v = fz - row;
-    const k = row * (columns + 1) + col;
-    const b = positions.getY(k + columns + 1);
-    const d = positions.getY(k + 1);
-    if (u + v <= 1) {
-      const a = positions.getY(k);
-      return a + (d - a) * u + (b - a) * v;
+    const gridX = (x - x0) / width * columns;
+    const gridZ = (z - z0) / depth * rows;
+    if (gridX < 0 || gridZ < 0 || gridX > columns || gridZ > rows) return outside?.(x, z);
+    const col = Math.min(Math.floor(gridX), columns - 1);
+    const row = Math.min(Math.floor(gridZ), rows - 1);
+    const columnFraction = gridX - col, rowFraction = gridZ - row;
+    const cornerIndex = row * (columns + 1) + col;
+    const farLeft = positions.getY(cornerIndex + columns + 1);
+    const nearRight = positions.getY(cornerIndex + 1);
+    if (columnFraction + rowFraction <= 1) {
+      const nearLeft = positions.getY(cornerIndex);
+      return nearLeft + (nearRight - nearLeft) * columnFraction + (farLeft - nearLeft) * rowFraction;
     }
-    const c = positions.getY(k + columns + 2);
-    return c + (b - c) * (1 - u) + (d - c) * (1 - v);
+    const farRight = positions.getY(cornerIndex + columns + 2);
+    return farRight + (farLeft - farRight) * (1 - columnFraction) + (nearRight - farRight) * (1 - rowFraction);
   };
 }
 
@@ -68,8 +68,8 @@ export function refineHeightfield(base, { x, z, cells, subdivisions, height, cre
   });
   const sample = heightfieldSampler(patch, coarse);
   // Keep the base vertex and index layout for other disjoint patches and external attributes.
-  for (let r = row; r < row + cells; r++) {
-    const start = (r * columns + col) * 6;
+  for (let patchRow = row; patchRow < row + cells; patchRow++) {
+    const start = (patchRow * columns + col) * 6;
     base.index.array.fill(0, start, start + cells * 6);
   }
   base.index.needsUpdate = true;

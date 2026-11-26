@@ -10,28 +10,28 @@ import { clamp, sstep } from './scalar.js';
 export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
   // Coursed ashlar: courses of uneven height, blocks of uneven length, thin joints, and each block its own tone.
   function ashlar({ seed = 611, courses = 10 } = {}) {
-    const R = mulberry32(seed),
+    const random = mulberry32(seed),
       N = courses,
       rows = [];
     let acc = 0;
     for (let i = 0; i < N; i++) {
-      const h = 0.75 + R() * 0.6;
+      const h = 0.75 + random() * 0.6;
       rows.push({ y0: acc, h });
       acc += h;
     }
     for (const r of rows) {
       r.y0 /= acc;
       r.h /= acc;
-      const n = 3 + ((R() * 3) | 0),
+      const n = 3 + ((random() * 3) | 0),
         cuts = [];
-      let a = R();
+      let cutPosition = random();
       for (let k = 0; k < n; k++) {
-        cuts.push(a % 1);
-        a += (0.7 + R() * 0.6) / n;
+        cuts.push(cutPosition % 1);
+        cutPosition += (0.7 + random() * 0.6) / n;
       }
       r.cuts = cuts.sort((p, q) => p - q);
-      r.tone = cuts.map(() => 0.86 + R() * 0.26);
-      r.warm = cuts.map(() => R());
+      r.tone = cuts.map(() => 0.86 + random() * 0.26);
+      r.warm = cuts.map(() => random());
     }
     return (u, v, o) => {
       let r = rows[N - 1];
@@ -40,29 +40,29 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
           r = rows[i];
           break;
         }
-      const c_ = r.cuts,
-        m = c_.length;
+      const cuts = r.cuts,
+        m = cuts.length;
       let k = m - 1;
       for (let i = 0; i < m; i++)
-        if (u < c_[i]) {
+        if (u < cuts[i]) {
           k = (i + m - 1) % m;
           break;
         }
-      const a = c_[k],
-        b = c_[(k + 1) % m],
-        w = (b - a + 1) % 1 || 1,
-        bu = ((u - a + 1) % 1) / w,
+      const startCut = cuts[k],
+        endCut = cuts[(k + 1) % m],
+        w = (endCut - startCut + 1) % 1 || 1,
+        bu = ((u - startCut + 1) % 1) / w,
         bv = (v - r.y0) / r.h;
       const dj = Math.min(Math.min(bu, 1 - bu) * w, Math.min(bv, 1 - bv) * r.h); // distance to the nearest joint, in tile units
       const joint = sstep(0.0, 0.0055, dj),
         edge = sstep(0.0, 0.028, dj),
         n = tfbm(u, v, 8, 4, 62),
         pit = sstep(0.62, 0.8, tfbm(u, v, 32, 2, 65));
-      const c = (158 + n * 62) * r.tone[k] * (0.72 + 0.28 * joint) * (0.93 + 0.07 * edge) * (1 - 0.12 * pit),
+      const brightness = (158 + n * 62) * r.tone[k] * (0.72 + 0.28 * joint) * (0.93 + 0.07 * edge) * (1 - 0.12 * pit),
         wm = r.warm[k];
-      o[0] = c * (1 + 0.03 * wm);
-      o[1] = c * 0.985;
-      o[2] = c * (0.95 - 0.04 * wm);
+      o[0] = brightness * (1 + 0.03 * wm);
+      o[1] = brightness * 0.985;
+      o[2] = brightness * (0.95 - 0.04 * wm);
     };
   }
 
@@ -88,11 +88,11 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
       const tone = 0.8 + 0.35 * id,
         stone = (150 + 60 * grain) * tone * (0.72 + 0.28 * Math.sqrt(rim)) * (1 - 0.12 * pit),
         mortar = 84 + 26 * tfbm(u, v, 14, 3, 100) + 14 * tfbm(u, v, 60, 2, 103), // lying back, flat and sandy
-        c = mortar + (stone - mortar) * inStone,
+        brightness = mortar + (stone - mortar) * inStone,
         warm = (hash2(big[0] + 7, big[1], 101) - 0.5) * 0.08 * inStone; // ironstone, limestone and grey field stone
-      o[0] = clamp(c * (1 + warm), 0, 255);
-      o[1] = clamp(c * 0.985, 0, 255);
-      o[2] = clamp(c * (0.95 - warm), 0, 255);
+      o[0] = clamp(brightness * (1 + warm), 0, 255);
+      o[1] = clamp(brightness * 0.985, 0, 255);
+      o[2] = clamp(brightness * (0.95 - warm), 0, 255);
     };
   }
 
@@ -100,10 +100,10 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
   const plaster = () => (u, v, o) => {
     const n = tfbm(u, v, 5, 5, 63),
       streak = tfbm(u * 3, v * 0.4, 4, 3, 64);
-    const c = clamp(170 + n * 60 + streak * 24 - 20 * sstep(0.9, 1.0, (v * 6) % 1), 0, 255);
-    o[0] = c;
-    o[1] = c * 0.99;
-    o[2] = c * 0.97;
+    const brightness = clamp(170 + n * 60 + streak * 24 - 20 * sstep(0.9, 1.0, (v * 6) % 1), 0, 255);
+    o[0] = brightness;
+    o[1] = brightness * 0.99;
+    o[2] = brightness * 0.97;
   };
 
   // Roof tiles in rows that break joint: each tile its own shade, its lower lip lit, a gap between neighbours.
@@ -116,20 +116,20 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
       const shade = 0.72 + 0.28 * hash2(Math.floor(u * cols + (r % 2) * 0.5) % cols, r, 65);
       const lip = 0.66 + 0.34 * sstep(0.0, 0.5, tv),
         gap = 0.75 + 0.25 * sstep(0, 0.12, tu) * sstep(1, 0.88, tu);
-      const c = (150 + tfbm(u, v, 8, 3, 66) * 70) * shade * lip * gap;
-      o[0] = c;
-      o[1] = c * 0.98;
-      o[2] = c * 0.96;
+      const brightness = (150 + tfbm(u, v, 8, 3, 66) * 70) * shade * lip * gap;
+      o[0] = brightness;
+      o[1] = brightness * 0.98;
+      o[2] = brightness * 0.96;
     };
 
   // Bare rock: mottled grey with dark cracks.
   const rock = () => (u, v, o) => {
     const n = tfbm(u, v, 4, 6, 67),
       crack = Math.abs(tfbm(u, v, 6, 4, 68) - 0.5) * 2;
-    const c = clamp((130 + n * 110) * (0.55 + 0.45 * sstep(0.0, 0.12, crack)), 0, 255);
-    o[0] = c;
-    o[1] = c;
-    o[2] = c * 0.98;
+    const brightness = clamp((130 + n * 110) * (0.55 + 0.45 * sstep(0.0, 0.12, crack)), 0, 255);
+    o[0] = brightness;
+    o[1] = brightness;
+    o[2] = brightness * 0.98;
   };
 
   // Planks side by side: grain along each, a dark edge between them, each plank its own tone.
@@ -139,18 +139,18 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
       const plank = Math.floor(u * count),
         g = tfbm(u * 0.6 + plank * 0.13, v, 4, 5, 69),
         edge = sstep(0, 0.06, (u * count) % 1);
-      const c = (130 + g * 90) * (0.82 + 0.18 * hash2(plank, 0, 70)) * (0.6 + 0.4 * edge);
-      o[0] = c * 1.05;
-      o[1] = c * 0.95;
-      o[2] = c * 0.8;
+      const brightness = (130 + g * 90) * (0.82 + 0.18 * hash2(plank, 0, 70)) * (0.6 + 0.4 * edge);
+      o[0] = brightness * 1.05;
+      o[1] = brightness * 0.95;
+      o[2] = brightness * 0.8;
     };
 
   // Leaf clusters, as one grey value: bright clumps, dark gaps.
   const foliage = () => (u, v, o) => {
-    const a = tfbm(u, v, 10, 3, 71),
-      b = tnoise(u * 34, v * 34, 34, 72),
-      c = tnoise(u * 90, v * 90, 90, 73);
-    const n = clamp(sstep(0.34, 0.62, a) * 0.62 + b * 0.3 + c * 0.16, 0, 1) * 255;
+    const coarseNoise = tfbm(u, v, 10, 3, 71),
+      mediumNoise = tnoise(u * 34, v * 34, 34, 72),
+      fineNoise = tnoise(u * 90, v * 90, 90, 73);
+    const n = clamp(sstep(0.34, 0.62, coarseNoise) * 0.62 + mediumNoise * 0.3 + fineNoise * 0.16, 0, 1) * 255;
     o[0] = o[1] = o[2] = n;
   };
 
@@ -161,10 +161,10 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
     (u, v, o) => {
       const n = tfbm(u, v, 6, 6, 3),
         g = tnoise(u * 160, v * 160, 160, 9);
-      const c = clamp(168 + n * 72 + g * 30, 0, 255);
-      o[0] = c;
-      o[1] = c * 0.99;
-      o[2] = c * 0.96;
+      const brightness = clamp(168 + n * 72 + g * 30, 0, 255);
+      o[0] = brightness;
+      o[1] = brightness * 0.99;
+      o[2] = brightness * 0.96;
       if (alpha) o[3] = 255 * alpha(u, v);
     };
 
@@ -178,9 +178,9 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
 
   // Sun-dried brick in mud mortar: courses that break joint, each brick its own tone, flecked with straw and worn at its edges.
   function brick({ seed = 733, courses: COURSES = 13, perCourse: BRICKS = 4 } = {}) {
-    const R = mulberry32(seed),
-      tone = Array.from({ length: COURSES * BRICKS * 2 }, () => 0.84 + R() * 0.3),
-      shift = Array.from({ length: COURSES }, () => R() * 0.18);
+    const random = mulberry32(seed),
+      tone = Array.from({ length: COURSES * BRICKS * 2 }, () => 0.84 + random() * 0.3),
+      shift = Array.from({ length: COURSES }, () => random() * 0.18);
     return (u, v, o) => {
       const row = Math.min(COURSES - 1, Math.floor(v * COURSES)),
         bv = v * COURSES - row,
@@ -193,10 +193,10 @@ export function createSurfaceTextures({ noise: { tfbm, tnoise }, hash2 }) {
         joint = sstep(0.06, 0.2, edge),
         grain = tfbm(u, v, 24, 4, 742),
         straw = sstep(0.8, 0.86, tfbm(u * 3, v * 0.6, 48, 2, 743));
-      const c = clamp((128 + grain * 70) * (0.74 + 0.26 * joint) * (joint > 0.5 ? tone[k] : 0.92) * (1 + straw * 0.12), 0, 255);
-      o[0] = c * 1.02;
-      o[1] = c * 0.97;
-      o[2] = c * 0.9;
+      const brightness = clamp((128 + grain * 70) * (0.74 + 0.26 * joint) * (joint > 0.5 ? tone[k] : 0.92) * (1 + straw * 0.12), 0, 255);
+      o[0] = brightness * 1.02;
+      o[1] = brightness * 0.97;
+      o[2] = brightness * 0.9;
     };
   }
 

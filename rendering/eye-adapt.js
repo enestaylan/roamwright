@@ -13,7 +13,7 @@ const METER = { w: 64, h: 36 }, // the first boiled-down picture, in texels: eac
   REDUCED = { w: 16, h: 9 }, //   then 4 x 4 of those to a texel, then all of these to one
   SPEED = { brighter: 2.4, darker: 0.9 }; // how fast the eye follows, a share a second: it closes on light faster than it opens in the dark
 
-const LUM = `/* glsl */ float logLum(vec3 c){ return log2(max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-4)); }`;
+const LUM = `/* glsl */ float logLum(vec3 sceneColor){ return log2(max(dot(sceneColor, vec3(0.2126, 0.7152, 0.0722)), 1e-4)); }`;
 // The scene to METER: the log brightness of 4 x 4 samples in each texel's span, weighted toward the middle of the picture, as (sum of
 // weighted values, sum of weights) so later steps may average both and divide at the end.
 const METER_FS = `/* glsl */ uniform sampler2D tSrc; uniform vec2 uSpan; varying vec2 vUv; ${LUM}
@@ -47,8 +47,8 @@ const ADAPT_FS = `/* glsl */ uniform sampler2D tMean, tPrev; uniform float uDt, 
     gl_FragColor = vec4(uFirst > 0.5 ? now : prev + (now - prev) * k, 0.0, 0.0, 1.0);
   }`;
 
-const target = (w, h, format) =>
-  new THREE.WebGLRenderTarget(w, h, {
+const target = (width, height, format) =>
+  new THREE.WebGLRenderTarget(width, height, {
     type: THREE.HalfFloatType,
     format,
     depthBuffer: false,
@@ -83,27 +83,27 @@ export function createEyeAdaptation() {
   quadScene.add(quad);
   const eye = { level: levels[0].texture, flip: 0, last: 0 };
 
-  function draw(rn, material, into) {
+  function draw(renderer, material, into) {
     quad.material = material;
-    rn.setRenderTarget(into);
-    rn.render(quadScene, quadCam);
+    renderer.setRenderTarget(into);
+    renderer.render(quadScene, quadCam);
   }
   // Meters the scene's picture (a texture of light before tone mapping) and moves the eye on; a pause of more than a second (a
   // crossing, a page that was hidden) starts the eye afresh where it looks.
-  function adaptEye(rn, sceneTexture) {
+  function adaptEye(renderer, sceneTexture) {
     const now = performance.now(),
-      dt = (now - eye.last) / 1000;
+      deltaSeconds = (now - eye.last) / 1000;
     eye.last = now;
     meterMat.uniforms.tSrc.value = sceneTexture;
-    draw(rn, meterMat, meter);
-    draw(rn, reduceMat, reduced);
-    draw(rn, meanMat, mean);
+    draw(renderer, meterMat, meter);
+    draw(renderer, reduceMat, reduced);
+    draw(renderer, meanMat, mean);
     const from = levels[eye.flip],
       into = levels[1 - eye.flip];
     adaptMat.uniforms.tPrev.value = from.texture;
-    adaptMat.uniforms.uDt.value = Math.min(dt, 0.1);
-    adaptMat.uniforms.uFirst.value = dt > 1 ? 1 : 0;
-    draw(rn, adaptMat, into);
+    adaptMat.uniforms.uDt.value = Math.min(deltaSeconds, 0.1);
+    adaptMat.uniforms.uFirst.value = deltaSeconds > 1 ? 1 : 0;
+    draw(renderer, adaptMat, into);
     eye.flip = 1 - eye.flip;
     eye.level = into.texture;
   }

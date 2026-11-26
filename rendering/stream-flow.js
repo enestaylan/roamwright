@@ -6,21 +6,21 @@ export const STREAM_FLOW_GLSL = /* glsl */ `
   }
 
   vec4 streamFlow(vec3 flow, float acrossMetres, float depth, float travel, float distanceToEye, float footprint) {
-    vec2 q = vec2(acrossMetres, flow.y - travel);
-    footprint = max(footprint, max(length(dFdx(q)), length(dFdy(q))));
+    vec2 flowPosition = vec2(acrossMetres, flow.y - travel);
+    footprint = max(footprint, max(length(dFdx(flowPosition)), length(dFdy(flowPosition))));
     vec2 broad = vec2(0.78, 0.24), middle = vec2(-1.35, 0.43), fine = vec2(2.4, 1.22);
     vec2 broadWarp = vec2(0.33, -0.22), middleWarp = vec2(0.38, 0.28), fineWarp = vec2(-0.58, 0.63);
-    float a = dot(q, broadWarp), b = dot(q, middleWarp), c = dot(q, fineWarp);
-    float broadPhase = dot(q, broad) + 1.55 * sin(a);
-    float middlePhase = dot(q, middle) + 1.35 * cos(b);
-    float finePhase = dot(q, fine) + 0.9 * sin(c);
-    vec2 broadRate = broad + 1.55 * cos(a) * broadWarp;
-    vec2 middleRate = middle - 1.35 * sin(b) * middleWarp;
-    vec2 fineRate = fine + 0.9 * cos(c) * fineWarp;
+    float broadWarpPhase = dot(flowPosition, broadWarp), middleWarpPhase = dot(flowPosition, middleWarp), fineWarpPhase = dot(flowPosition, fineWarp);
+    float broadPhase = dot(flowPosition, broad) + 1.55 * sin(broadWarpPhase);
+    float middlePhase = dot(flowPosition, middle) + 1.35 * cos(middleWarpPhase);
+    float finePhase = dot(flowPosition, fine) + 0.9 * sin(fineWarpPhase);
+    vec2 broadRate = broad + 1.55 * cos(broadWarpPhase) * broadWarp;
+    vec2 middleRate = middle - 1.35 * sin(middleWarpPhase) * middleWarp;
+    vec2 fineRate = fine + 0.9 * cos(fineWarpPhase) * fineWarp;
     float broadDetail = streamWaveDetail(footprint, length(broadRate));
     float middleDetail = streamWaveDetail(footprint, length(middleRate));
     float fineDetail = streamWaveDetail(footprint, length(fineRate));
-    float packet = 0.5 + 0.5 * sin(dot(q, vec2(0.23, -0.19)) + 0.9 * sin(b));
+    float packet = 0.5 + 0.5 * sin(dot(flowPosition, vec2(0.23, -0.19)) + 0.9 * sin(middleWarpPhase));
     vec2 slope = 0.085 * broadRate * cos(broadPhase) * broadDetail * (0.38 + 0.62 * packet)
                + 0.048 * middleRate * cos(middlePhase) * middleDetail * (1.0 - 0.55 * packet)
                + 0.016 * fineRate * cos(finePhase) * fineDetail;

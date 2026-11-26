@@ -11,7 +11,7 @@ const FOLDS = {
   fade: [0.008, 0.022], // the size of a pixel (metres) from which the folds fade and are gone: a fold a pixel or two wide would crawl
   slope: FOLD_SLOPES, //    the steepest slope each field's byte holds (of its height, for each tile)
 };
-const f = n => n.toFixed(4);
+const shaderFloat = value => value.toFixed(4);
 // What each kind of garment is to the eye (KIND order): how much of the
 // cloth texture's weave is smoothed away and the tone it is left at (of a plain weave's), how much of the long folds and of
 // the crumple it takes, how rough it is (a plain weave keeps the material's own: 0) and how much a metal.
@@ -28,7 +28,7 @@ const KINDS = [
   PLATE_WEAR = { face: 0.22, edge: 0.38 },
   MAIL = { around: 120, up: 210, fade: [0.18, 0.44] }, // links to the circumference and rows per metre
   kindOf = column =>
-    `(kind < 0.5 ? ${f(KINDS[0][column])} : kind < 1.5 ? ${f(KINDS[1][column])} : kind < 2.5 ? ${f(KINDS[2][column])} : kind < 3.5 ? ${f(KINDS[3][column])} : kind < 4.5 ? ${f(KINDS[4][column])} : ${f(KINDS[5][column])})`;
+    `(kind < 0.5 ? ${shaderFloat(KINDS[0][column])} : kind < 1.5 ? ${shaderFloat(KINDS[1][column])} : kind < 2.5 ? ${shaderFloat(KINDS[2][column])} : kind < 3.5 ? ${shaderFloat(KINDS[3][column])} : kind < 4.5 ? ${shaderFloat(KINDS[4][column])} : ${shaderFloat(KINDS[5][column])})`;
 // What the fragment shader declares: the textures; the folds' slopes across the screen (metres of height a pixel), which
 // GARMENT_FOLDS works out and FOLD_RELIEF turns the normal by; and how worn smooth a spot of leather is, for its sheen.
 const FOLD_PARS = `/* glsl */
@@ -44,33 +44,33 @@ float mailLink(vec2 uv, float row, float aa) {
 // In the surface's colour (after vSk, the tag, and vL, the point as built, are known): the garment's own weave or smoothness,
 // the folds' slopes, and their shade.
 const GARMENT_FOLDS = `/* glsl */
-      { float worn = -vSk, kind = floor(worn + 0.001), show = step(0.05, worn) * (1.0 - smoothstep(${f(FOLDS.fade[0])}, ${f(FOLDS.fade[1])}, length(fwidth(vViewPosition))));
+      { float worn = -vSk, kind = floor(worn + 0.001), show = step(0.05, worn) * (1.0 - smoothstep(${shaderFloat(FOLDS.fade[0])}, ${shaderFloat(FOLDS.fade[1])}, length(fwidth(vViewPosition))));
         vec3 bx = dFdx(vL), by = dFdy(vL);
-        if (worn > 0.05) { float even = ${kindOf(0)}; diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${f(WEAVE_TONE)}), even) * ${kindOf(1)}; gH = mix(gH, 0.5, even); }
+        if (worn > 0.05) { float even = ${kindOf(0)}; diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${shaderFloat(WEAVE_TONE)}), even) * ${kindOf(1)}; gH = mix(gH, 0.5, even); }
         if (show > 0.0) {
-          float crease = clamp((worn - kind - ${f(PLAIN)}) / ${f(CREASED - PLAIN)}, 0.0, 1.0), turn = atan(vL.x, vL.z) * 0.15915494;
+          float crease = clamp((worn - kind - ${shaderFloat(PLAIN)}) / ${shaderFloat(CREASED - PLAIN)}, 0.0, 1.0), turn = atan(vL.x, vL.z) * 0.15915494;
           // how far round the body, and up it, a pixel to the right and a pixel up are
           vec2 round = vec2(vL.z * bx.x - vL.x * bx.z, vL.z * by.x - vL.x * by.z) / (6.2832 * max(dot(vL.xz, vL.xz), 0.0036)), up = vec2(bx.y, by.y);
-          vec2 hu = round * ${f(FOLDS.hang[0])}, cu = round * ${f(FOLDS.crumple[0])} + up * ${f(FOLDS.lean)}, cv = up * ${f(FOLDS.crumple[1])};
-          vec2 hang = textureLod(uFolds, vec2(turn * ${f(FOLDS.hang[0])}, vL.y * ${f(FOLDS.hang[1])}), 0.5 * log2(max(dot(hu, hu), dot(up, up) * ${f(FOLDS.hang[1] ** 2)}) * 65536.0)).rg;
-          vec3 crumple = textureLod(uCrumple, vec2(turn * ${f(FOLDS.crumple[0])} + vL.y * ${f(FOLDS.lean)}, vL.y * ${f(FOLDS.crumple[1])}), 0.5 * log2(max(dot(cu, cu), dot(cv, cv)) * 65536.0)).rgb;
+          vec2 hu = round * ${shaderFloat(FOLDS.hang[0])}, cu = round * ${shaderFloat(FOLDS.crumple[0])} + up * ${shaderFloat(FOLDS.lean)}, cv = up * ${shaderFloat(FOLDS.crumple[1])};
+          vec2 hang = textureLod(uFolds, vec2(turn * ${shaderFloat(FOLDS.hang[0])}, vL.y * ${shaderFloat(FOLDS.hang[1])}), 0.5 * log2(max(dot(hu, hu), dot(up, up) * ${shaderFloat(FOLDS.hang[1] ** 2)}) * 65536.0)).rg;
+          vec3 crumple = textureLod(uCrumple, vec2(turn * ${shaderFloat(FOLDS.crumple[0])} + vL.y * ${shaderFloat(FOLDS.lean)}, vL.y * ${shaderFloat(FOLDS.crumple[1])}), 0.5 * log2(max(dot(cu, cu), dot(cv, cv)) * 65536.0)).rgb;
           // half gathered, the cloth hangs in its long folds; past that it is crumpled as well. Leather is creased a little wherever it is
-          float leather = 1.0 - step(0.5, abs(kind - 3.0)), fall = show * mix(${f(FOLDS.smooth)}, 1.0, min(1.0, crease * 2.0)) * ${kindOf(2)};
+          float leather = 1.0 - step(0.5, abs(kind - 3.0)), fall = show * mix(${shaderFloat(FOLDS.smooth)}, 1.0, min(1.0, crease * 2.0)) * ${kindOf(2)};
           float crush = max(crease * 2.0 - 1.0, 0.0); crush = show * max(crush * crush, 0.15 * leather) * ${kindOf(3)};
-          gFold = fall * ${f(FOLDS.deep[0] * FOLDS.slope[0])} * (hang.r * 2.0 - 1.0) * hu
-            + crush * ${f(FOLDS.deep[1] * FOLDS.slope[1])} * ((crumple.r * 2.0 - 1.0) * cu + (crumple.g * 2.0 - 1.0) * cv);
-          diffuseColor.rgb *= (1.0 - ${f(FOLDS.shade[0])} * fall * (1.0 - hang.g)) * (1.0 - ${f(FOLDS.shade[1])} * crush * (1.0 - crumple.b));
+          gFold = fall * ${shaderFloat(FOLDS.deep[0] * FOLDS.slope[0])} * (hang.r * 2.0 - 1.0) * hu
+            + crush * ${shaderFloat(FOLDS.deep[1] * FOLDS.slope[1])} * ((crumple.r * 2.0 - 1.0) * cu + (crumple.g * 2.0 - 1.0) * cv);
+          diffuseColor.rgb *= (1.0 - ${shaderFloat(FOLDS.shade[0])} * fall * (1.0 - hang.g)) * (1.0 - ${shaderFloat(FOLDS.shade[1])} * crush * (1.0 - crumple.b));
           // Plate's tag can mark an exposed edge. The existing crease field breaks up its polish.
           float plate = step(4.5, kind);
           float edge = plate * smoothstep(0.65, 0.96, crease) * mix(0.6, 1.0, crumple.b);
           gWorn = show * max(max(leather, plate) * crumple.b, edge);
-          diffuseColor.rgb *= 1.0 + show * (${f(PLATE_WEAR.edge)} * edge - plate * ${f(PLATE_WEAR.face)} * (1.0 - crumple.b) * (1.0 - edge));
-          diffuseColor.rgb *= 1.0 + leather * show * (${f(LEATHER.worn)} * crumple.b * crumple.b - ${f(LEATHER.grain)} * (1.0 - crumple.b));
+          diffuseColor.rgb *= 1.0 + show * (${shaderFloat(PLATE_WEAR.edge)} * edge - plate * ${shaderFloat(PLATE_WEAR.face)} * (1.0 - crumple.b) * (1.0 - edge));
+          diffuseColor.rgb *= 1.0 + leather * show * (${shaderFloat(LEATHER.worn)} * crumple.b * crumple.b - ${shaderFloat(LEATHER.grain)} * (1.0 - crumple.b));
           if (kind == 4.0) {
-            float pixel = max(length(round) * ${f(MAIL.around)}, length(up) * ${f(MAIL.up)});
-            float detail = 1.0 - smoothstep(${f(MAIL.fade[0])}, ${f(MAIL.fade[1])}, pixel);
+            float pixel = max(length(round) * ${shaderFloat(MAIL.around)}, length(up) * ${shaderFloat(MAIL.up)});
+            float detail = 1.0 - smoothstep(${shaderFloat(MAIL.fade[0])}, ${shaderFloat(MAIL.fade[1])}, pixel);
             if (detail > 0.0) {
-              vec2 uv = vec2(turn * ${f(MAIL.around)}, vL.y * ${f(MAIL.up)});
+              vec2 uv = vec2(turn * ${shaderFloat(MAIL.around)}, vL.y * ${shaderFloat(MAIL.up)});
               float row = floor(uv.y), aa = max(0.02, pixel * 0.5);
               // Alternating rows lean and stagger so adjacent links meet on the half-row.
               float link = max(mailLink(uv, row, aa), mailLink(uv, row + (fract(uv.y) < 0.5 ? -1.0 : 1.0), aa));

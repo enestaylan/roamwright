@@ -13,12 +13,12 @@ export function createSaggingTube({ spanSegments, radialSegments, radius, slack 
   if (![radius, slack, extraLength].every(Number.isFinite) || radius <= 0 || slack < 1 || extraLength < 0) {
     throw new RangeError('Expected a positive radius, slack of at least one and nonnegative extra length');
   }
-  const _p = new THREE.Vector3(),
-    _t = new THREE.Vector3(),
-    _n = new THREE.Vector3(),
-    _b = new THREE.Vector3(),
+  const pointScratch = new THREE.Vector3(),
+    tangentScratch = new THREE.Vector3(),
+    normalScratch = new THREE.Vector3(),
+    binormalScratch = new THREE.Vector3(),
     UP = new THREE.Vector3(0, 1, 0);
-  return function update(anchors, count, pos, nor) {
+  return function update(anchors, count, positions, normals) {
     let ring = 0;
     for (let s = 0; s < count - 1; s++) {
       const from = anchors[s],
@@ -28,29 +28,29 @@ export function createSaggingTube({ spanSegments, radialSegments, radius, slack 
         sag = Math.sqrt((3 * span * Math.max(0, length - span)) / 8); // a parabola of that length over that span
       for (let j = s ? 1 : 0; j <= spanSegments; j++, ring++) {
         const u = j / spanSegments;
-        _p.lerpVectors(from, to, u);
-        _p.y -= sag * 4 * u * (1 - u);
-        _t.subVectors(to, from);
-        _t.y -= sag * 4 * (1 - 2 * u);
-        _t.normalize();
-        _n.crossVectors(_t, UP);
-        if (_n.lengthSq() < 1e-6) _n.set(1, 0, 0);
-        _n.normalize();
-        _b.crossVectors(_n, _t);
+        pointScratch.lerpVectors(from, to, u);
+        pointScratch.y -= sag * 4 * u * (1 - u);
+        tangentScratch.subVectors(to, from);
+        tangentScratch.y -= sag * 4 * (1 - 2 * u);
+        tangentScratch.normalize();
+        normalScratch.crossVectors(tangentScratch, UP);
+        if (normalScratch.lengthSq() < 1e-6) normalScratch.set(1, 0, 0);
+        normalScratch.normalize();
+        binormalScratch.crossVectors(normalScratch, tangentScratch);
         for (let k = 0; k < radialSegments; k++) {
-          const a = (k / radialSegments) * Math.PI * 2,
-            c = Math.cos(a),
-            d = Math.sin(a),
-            o = (ring * radialSegments + k) * 3,
-            nx = _n.x * c + _b.x * d,
-            ny = _n.y * c + _b.y * d,
-            nz = _n.z * c + _b.z * d;
-          nor[o] = nx;
-          nor[o + 1] = ny;
-          nor[o + 2] = nz;
-          pos[o] = _p.x + nx * radius;
-          pos[o + 1] = _p.y + ny * radius;
-          pos[o + 2] = _p.z + nz * radius;
+          const ringAngle = (k / radialSegments) * Math.PI * 2,
+            cosAngle = Math.cos(ringAngle),
+            sinAngle = Math.sin(ringAngle),
+            positionOffset = (ring * radialSegments + k) * 3,
+            nx = normalScratch.x * cosAngle + binormalScratch.x * sinAngle,
+            ny = normalScratch.y * cosAngle + binormalScratch.y * sinAngle,
+            nz = normalScratch.z * cosAngle + binormalScratch.z * sinAngle;
+          normals[positionOffset] = nx;
+          normals[positionOffset + 1] = ny;
+          normals[positionOffset + 2] = nz;
+          positions[positionOffset] = pointScratch.x + nx * radius;
+          positions[positionOffset + 1] = pointScratch.y + ny * radius;
+          positions[positionOffset + 2] = pointScratch.z + nz * radius;
         }
       }
     }

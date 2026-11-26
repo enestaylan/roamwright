@@ -53,10 +53,10 @@ export function createCloudField({
     const driftX = drift.x * ALOFT * FIELD_PER_METRE,
       driftZ = drift.y * ALOFT * FIELD_PER_METRE,
       slant = (FLARE * (1 + SHADOW_AT * THICK)) / (Math.max(light.y, 0) + DIP),
-      sh = cloudU.uCloudSh.value;
+      cloudShadow = cloudU.uCloudSh.value;
     overhead.x = x * FIELD_PER_METRE + driftX;
     overhead.z = z * FIELD_PER_METRE + driftZ;
-    sh.set(
+    cloudShadow.set(
       wrap((driftX + light.x * slant) / CLOUD_SHEET),
       wrap((driftZ + light.z * slant) / CLOUD_SHEET),
       threshold + SHADOW_FROM,

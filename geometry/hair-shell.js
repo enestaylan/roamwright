@@ -20,23 +20,23 @@ const _o = new THREE.Vector3(),
 
 // The mass of a cut. scale: how far out from the skull its fullest stands (across, up, fore and aft, as shares of the skull);
 // inHair(x, y, z): how far inside the hairline a direction lies; drop: how far it hangs below the ears; lumps: how deep its
-// lumps are (a share of the skull) and lumpy: how many there are round the head; tucked(d): where it lies under a fall of long
+// lumps are (a share of the skull) and lumpy: how many there are round the head; tucked(direction): where it lies under a fall of long
 // hair and is drawn in to the skull, 0 to 1.
-// Returns at(d, lift, out, outward): the point of the mass at a direction from the head's middle, raised off it by lift
-// (metres), and the way out there; and full(d): how much of its fullness the mass has at a direction, 0 to 1.
+// Returns at(direction, lift, out, outward): the point of the mass at a direction from the head's middle, raised off it by lift
+// (metres), and the way out there; and full(direction): how much of its fullness the mass has at a direction, 0 to 1.
 function massOf({ skull, scale, inHair, drop = 0, lumps = 0, lumpy = 5, tucked = null }) {
-  const full = d => (EDGE + (1 - EDGE) * sstep(-0.01, RISE, inHair(d.x, d.y, d.z))) * (tucked ? 1 - TUCK * tucked(d) : 1),
-    swell = d =>
+  const full = direction => (EDGE + (1 - EDGE) * sstep(-0.01, RISE, inHair(direction.x, direction.y, direction.z))) * (tucked ? 1 - TUCK * tucked(direction) : 1),
+    swell = direction =>
       lumps *
-      (Math.sin(d.x * lumpy * 2.3 + d.y * lumpy * 1.3) * Math.sin(d.z * lumpy * 2.1 - d.y * lumpy * 1.7) +
-        0.6 * Math.sin(d.y * lumpy * 2.9 + d.x * lumpy * 1.1 - d.z * lumpy * 1.9)),
-    at = (d, lift, out, outward = _n) => {
-      const k = full(d),
-        more = lumps ? swell(d) * k : 0;
-      skull.skull(d, out);
+      (Math.sin(direction.x * lumpy * 2.3 + direction.y * lumpy * 1.3) * Math.sin(direction.z * lumpy * 2.1 - direction.y * lumpy * 1.7) +
+        0.6 * Math.sin(direction.y * lumpy * 2.9 + direction.x * lumpy * 1.1 - direction.z * lumpy * 1.9)),
+    at = (direction, lift, out, outward = _n) => {
+      const k = full(direction),
+        more = lumps ? swell(direction) * k : 0;
+      skull.skull(direction, out);
       out.set(
         out.x * (1 + (scale[0] - 1) * k + more),
-        out.y * (1 + (scale[1] - 1) * k + more) * (d.y < 0 ? 1 + drop : 1),
+        out.y * (1 + (scale[1] - 1) * k + more) * (direction.y < 0 ? 1 + drop : 1),
         out.z * (1 + (scale[2] - 1) * k + more),
       );
       outward.copy(out).sub(MIDDLE).normalize();
@@ -52,7 +52,7 @@ function roundPole(pole) {
     e1 = new THREE.Vector3(1, 0, 0).addScaledVector(axis, -axis.x).normalize(),
     e2 = new THREE.Vector3().crossVectors(axis, e1),
     turn = TURNS * STRANDS.period;
-  const across = d => (Math.atan2(d.dot(e2), d.dot(e1)) / TAU) * turn;
+  const across = direction => (Math.atan2(direction.dot(e2), direction.dot(e1)) / TAU) * turn;
   across.turn = turn;
   across.axis = axis;
   return across;
@@ -65,8 +65,8 @@ function createHairShells(sculptMesh) {
   return function shellOf(key, mass, across) {
     let shell = shells.get(key);
     if (shell) return shell;
-    const soup = sculptMesh('mass:' + key, DETAIL, (d, o) => mass.at(d, 0, o)),
-      { P, N, D } = soup,
+    const soup = sculptMesh('mass:' + key, DETAIL, (direction, o) => mass.at(direction, 0, o)),
+      { P: positions, N: normals, D: directions } = soup,
       points = [], // x, y, z, the normal, the direction
       inside = [],
       known = new Map(),
@@ -79,10 +79,10 @@ function createHairShells(sculptMesh) {
     // Shared sphere directions have identical positions along the hairline.
     for (let i = 0; i < soup.n; i++) {
       const q = i * 3,
-        at = Math.round(D[q] * 2e4) + ',' + Math.round(D[q + 1] * 2e4) + ',' + Math.round(D[q + 2] * 2e4);
+        at = Math.round(directions[q] * 2e4) + ',' + Math.round(directions[q + 1] * 2e4) + ',' + Math.round(directions[q + 2] * 2e4);
       let v = known.get(at);
       if (v === undefined) {
-        v = add(P[q], P[q + 1], P[q + 2], N[q], N[q + 1], N[q + 2], D[q], D[q + 1], D[q + 2], mass.inHair(D[q], D[q + 1], D[q + 2]));
+        v = add(positions[q], positions[q + 1], positions[q + 2], normals[q], normals[q + 1], normals[q + 2], directions[q], directions[q + 1], directions[q + 2], mass.inHair(directions[q], directions[q + 1], directions[q + 2]));
         known.set(at, v);
       }
       numbered[i] = v;
@@ -95,23 +95,23 @@ function createHairShells(sculptMesh) {
         if (v !== undefined) return v;
         let low = 0,
           high = 1;
-        const a = i * 9,
-          b = j * 9;
+        const firstOffset = i * 9,
+          secondOffset = j * 9;
         for (let s = 0; s < SEAM_STEPS; s++) {
           const t = (low + high) / 2;
-          _d.set(points[a + 6], points[a + 7], points[a + 8])
-            .lerp(_e1.set(points[b + 6], points[b + 7], points[b + 8]), t)
+          _d.set(points[firstOffset + 6], points[firstOffset + 7], points[firstOffset + 8])
+            .lerp(_e1.set(points[secondOffset + 6], points[secondOffset + 7], points[secondOffset + 8]), t)
             .normalize();
           if (mass.inHair(_d.x, _d.y, _d.z) > 0) low = t;
           else high = t;
         }
-        _d.set(points[a + 6], points[a + 7], points[a + 8])
-          .lerp(_e1.set(points[b + 6], points[b + 7], points[b + 8]), low)
+        _d.set(points[firstOffset + 6], points[firstOffset + 7], points[firstOffset + 8])
+          .lerp(_e1.set(points[secondOffset + 6], points[secondOffset + 7], points[secondOffset + 8]), low)
           .normalize();
         mass.at(_d, 0, _o);
         _e2
-          .set(points[a + 3], points[a + 4], points[a + 5])
-          .lerp(_e1.set(points[b + 3], points[b + 4], points[b + 5]), low)
+          .set(points[firstOffset + 3], points[firstOffset + 4], points[firstOffset + 5])
+          .lerp(_e1.set(points[secondOffset + 3], points[secondOffset + 4], points[secondOffset + 5]), low)
           .normalize();
         v = add(_o.x, _o.y, _o.z, _e2.x, _e2.y, _e2.z, _d.x, _d.y, _d.z, 0);
         crossings.set(side, v);
@@ -134,8 +134,8 @@ function createHairShells(sculptMesh) {
     for (let t = 0; t < triangles.length; t += 3) {
       let most = 0;
       for (let e = 0; e < 3; e++) {
-        const p = triangles[t + e] * 9;
-        let q = across(_d.set(points[p + 6], points[p + 7], points[p + 8]));
+        const vertexOffset = triangles[t + e] * 9;
+        let q = across(_d.set(points[vertexOffset + 6], points[vertexOffset + 7], points[vertexOffset + 8]));
         if (e) {
           q += across.turn * Math.round((strands[t] - q) / across.turn);
           most = Math.max(most, Math.abs(q - strands[t]));
@@ -161,17 +161,17 @@ function placeHairShell(shell, place, colour) {
   const same = new Map();
   let count = 0;
   for (let t = 0; t < triangles.length; t++) {
-    const p = triangles[t],
-      key = p * 8192 + Math.round(strands[t] * 1024) + 4096;
+    const vertexIndex = triangles[t],
+      key = vertexIndex * 8192 + Math.round(strands[t] * 1024) + 4096;
     let at = same.get(key);
     if (at === undefined) {
       at = count++;
       same.set(key, at);
-      const q = p * 9,
+      const q = vertexIndex * 9,
         k = at * POINT;
       for (let i = 0; i < 6; i++) v[i] = points[q + i];
       place(v);
-      colour(inside[p], points[q + 6], points[q + 7], points[q + 8], tint);
+      colour(inside[vertexIndex], points[q + 6], points[q + 7], points[q + 8], tint);
       for (let i = 0; i < 6; i++) placed[k + i] = v[i];
       placed[k + 6] = tint[0];
       placed[k + 7] = tint[1];

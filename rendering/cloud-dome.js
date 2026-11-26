@@ -25,7 +25,7 @@ export function createCloudDome({ renderer, field, warmProgram }) {
     JUMP = 0.6, // the viewer carried further than this in one frame (the field's units) is a cut: the clouds are drawn whole at once
     TURNED = 0.96, // and so is a light that turned by more than this cosine,
     CHANGED = 0.1; // or a sky whose threshold moved by more
-  const f = (v, digits = 4) => v.toFixed(digits);
+  const formatFloat = (v, digits = 4) => v.toFixed(digits);
 
   const DOME_FS = `/* glsl */
     precision highp float; precision highp sampler3D;
@@ -43,15 +43,15 @@ export function createCloudDome({ renderer, field, warmProgram }) {
     const float ERODE = 0.12;        // how far the creases between billows eat into the body, and
     const float FINER = 0.42;        // the finer ones, as a share of that
     // Where a point lies in the block of billows: p from the viewer in the field's units, h its height in the layer.
-    vec3 inBlock(vec2 p, float h) { return vec3(uAt * ${f(CLOUD_SHEET, 1)} + p, h * ${f(DEPTH)}).xzy * ${f(BLOCKS)}; }
+    vec3 inBlock(vec2 p, float h) { return vec3(uAt * ${formatFloat(CLOUD_SHEET, 1)} + p, h * ${formatFloat(DEPTH)}).xzy * ${formatFloat(BLOCKS)}; }
     // How far inside a cloud's body a point lies, in the field's value: 0 at its edge, SOFT and more in full cloud, below 0 in
     // clear air. p: from the viewer in the field's units; h: its height in the layer (0 the base, 1 the top). over: how far the
     // field stands over the threshold there; base: what the cloud's underside leaves of it there (0 below it, 1 well above);
     // rough: how far the billows eat into it there.
     float bodyAt(vec2 p, float h, float lod, out float over, out float base, out float rough) {
-      vec4 texel = textureLod(uCloudField, uAt + p * ${f(1 / CLOUD_SHEET, 6)}, lod);
+      vec4 texel = textureLod(uCloudField, uAt + p * ${formatFloat(1 / CLOUD_SHEET, 6)}, lod);
       over = cloudField(texel) - uCloud;
-      float h2 = h * h, body = over - ${f(SPAN)} * h2 * h2;
+      float h2 = h * h, body = over - ${formatFloat(SPAN)} * h2 * h2;
       rough = ERODE * (0.45 + 0.55 * smoothstep(0.0, 0.3, h));      // a cloud's base is smoother than its sides and top
       // the base is level but for shallow hollows between hanging bulges (the sheet's finer lumps), deeper under a closed sky
       base = smoothstep(0.0, BASE_SOFT, h - (BASE_HOLLOW + BASE_HOLLOW_CLOSED * smoothstep(0.25, 0.6, over)) * (1.0 - texel.g));
@@ -60,22 +60,22 @@ export function createCloudDome({ renderer, field, warmProgram }) {
     }
     // The share of a stretch that is cloud when its two ends lie a and b inside the body, the body taken to change evenly between
     // them: a cloud's edge is found where it lies between two steps, not at the nearer step (which drew it in terraces).
-    float filled(float a, float b) {
-      vec2 e = max(vec2(a, b), 0.0), sum = mix(e * e * ${f(0.5)} / SOFT, e - 0.5 * SOFT, step(SOFT, e));
-      return abs(b - a) > 1e-4 ? clamp((sum.y - sum.x) / (b - a), 0.0, 1.0) : clamp(a / SOFT, 0.0, 1.0);
+    float filled(float startDensity, float endDensity) {
+      vec2 densities = max(vec2(startDensity, endDensity), 0.0), sum = mix(densities * densities * ${formatFloat(0.5)} / SOFT, densities - 0.5 * SOFT, step(SOFT, densities));
+      return abs(endDensity - startDensity) > 1e-4 ? clamp((sum.y - sum.x) / (endDensity - startDensity), 0.0, 1.0) : clamp(startDensity / SOFT, 0.0, 1.0);
     }
     void main() {
-      vec2 r = (vUv - 0.5) * ${f(2 * RIM)};
+      vec2 r = (vUv - 0.5) * ${formatFloat(2 * RIM)};
       float r2 = dot(r, r);
-      if (r2 >= ${f(RIM * RIM)}) { gl_FragColor = vec4(0.0); return; }
+      if (r2 >= ${formatFloat(RIM * RIM)}) { gl_FragColor = vec4(0.0); return; }
       float up = (1.0 - r2) / (1.0 + r2);                       // the direction's height: 1 overhead, 0 at the horizon
-      if (up < ${f(LOWEST - 0.012)}) { gl_FragColor = vec4(0.0); return; }      // no cloud is drawn that low in the sky (cloud-field.js)
-      vec2 q = r * (1.0 + up) / (max(up, 0.0) + ${f(DIP)});     // how far the ray runs level for each unit it climbs
+      if (up < ${formatFloat(LOWEST - 0.012)}) { gl_FragColor = vec4(0.0); return; }      // no cloud is drawn that low in the sky (cloud-field.js)
+      vec2 q = r * (1.0 + up) / (max(up, 0.0) + ${formatFloat(DIP)});     // how far the ray runs level for each unit it climbs
       float reach = length(q), slope = sqrt(1.0 + reach * reach);
       int steps = int(min(float(STEPS) + 9.0 * reach, float(MAX_STEPS)));      // a ray near the horizon runs long through the layer
       float dh = 1.0 / float(steps);
       // the sheet's level of detail: a step is not finer than the way it travels, or a far cloud showed as a stack of slivers
-      float lod = clamp(log2(max(reach * dh * ${f(DEPTH * TEXELS)}, 0.01)) - 0.5, 0.0, 3.0);
+      float lod = clamp(log2(max(reach * dh * ${formatFloat(DEPTH * TEXELS)}, 0.01)) - 0.5, 0.0, 3.0);
       float finer = FINER * (1.0 - lod / 1.5);      // the finer billows fade out where a step is too long to show them
       // each ray's steps stand a little higher or lower than its neighbours', so what is left of the layer's levels in a cloud's
       // shading does not run on as lines
@@ -85,7 +85,7 @@ export function createCloudDome({ renderer, field, warmProgram }) {
       for (int i = 0; i < MAX_STEPS; i++) {
         if (i >= steps) break;
         float h = (float(i) + shift) * dh;
-        vec2 p = q * (${f(FLARE)} * (1.0 + h * ${f(THICK)}));
+        vec2 p = q * (${formatFloat(FLARE)} * (1.0 + h * ${formatFloat(THICK)}));
         float body = bodyAt(p, h, lod, over, base, rough), cloud;
         #if FINE
           if (finer > 0.0 && max(was, body) > 0.0) {
@@ -94,7 +94,7 @@ export function createCloudDome({ renderer, field, warmProgram }) {
             for (int k = 1; k <= 3; k++) {
               float t = float(k) / 3.0, hk = h - (1.0 - t) * dh, part = mix(was, body, t);
               if (part > 0.0) {
-                vec3 small = textureLod(uBillows, inBlock(q * (${f(FLARE)} * (1.0 + hk * ${f(THICK)})), hk) * 4.0 + uChurn.zxy * 3.0, lod).rgb;
+                vec3 small = textureLod(uBillows, inBlock(q * (${formatFloat(FLARE)} * (1.0 + hk * ${formatFloat(THICK)})), hk) * 4.0 + uChurn.zxy * 3.0, lod).rgb;
                 part -= rough * finer * (1.0 - dot(small, vec3(0.5, 0.3, 0.2)));
               }
               cloud += filled(wasFine, part);
@@ -115,9 +115,9 @@ export function createCloudDome({ renderer, field, warmProgram }) {
         if (cloud < 0.003) continue;
         // the cloud between this point and the light, in steps that lengthen
         float between = 0.0, gone = 0.0, span = float(L_FIRST);
-        vec2 from = q * (${f(FLARE)} * (1.0 + lit * ${f(THICK)}));
+        vec2 from = q * (${formatFloat(FLARE)} * (1.0 + lit * ${formatFloat(THICK)}));
         for (int j = 0; j < LIGHT_STEPS; j++) {
-          float l = gone + 0.5 * span, hl = lit + uLight.y * l * ${f(1 / DEPTH)};
+          float l = gone + 0.5 * span, hl = lit + uLight.y * l * ${formatFloat(1 / DEPTH)};
           if (hl <= 0.0 || hl >= 1.0) break;
           between += clamp(bodyAt(from + uLight.xz * l, hl, max(lod, 0.5) + 0.5 * float(j), none, base, rough) / SOFT, 0.0, 1.0) * base * span;
           gone += span; span *= float(L_GROW);
@@ -125,17 +125,17 @@ export function createCloudDome({ renderer, field, warmProgram }) {
         between *= SIGMA;
         float once = exp(-between);                                                 // light that comes straight through
         float many = 0.7 * exp(-between * 0.3) + 0.3 * exp(-between * 0.1);         // and light passed on from drop to drop, which reaches deeper
-        float top = sqrt(sqrt(clamp(over * ${f(1 / SPAN)}, 0.0, 1.0)));
+        float top = sqrt(sqrt(clamp(over * ${formatFloat(1 / SPAN)}, 0.0, 1.0)));
         // the sky's light: from above, less the deeper under the cloud's top, and a little from below on its base
         float sky = 0.84 * exp(-3.0 * max(top - lit, 0.0)) * (0.5 + 0.5 * lit) + 0.16 * exp(-5.0 * lit);
-        float a = 1.0 - exp(-cloud * (SIGMA * ${f(DEPTH)}) * dh * slope);
+        float a = 1.0 - exp(-cloud * (SIGMA * ${formatFloat(DEPTH)}) * dh * slope);
         sum += seen * a * vec3(many, once, sky);
         seen *= 1.0 - a;
         if (seen < 0.02) break;
       }
       // each is kept in a byte: a grain of half a step of it hides the steps between
       float grain = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5;
-      gl_FragColor = vec4(sum, min((1.0 - seen) * ${f(1 / 0.98)}, 1.0)) + grain * ${f(1 / 255, 6)};
+      gl_FragColor = vec4(sum, min((1.0 - seen) * ${formatFloat(1 / 0.98)}, 1.0)) + grain * ${formatFloat(1 / 255, 6)};
     }`;
 
   // For the sky's shader: declares cloudDome(d), the clouds' picture in a direction above the horizon (r, g, b, a as above).
@@ -143,11 +143,11 @@ export function createCloudDome({ renderer, field, warmProgram }) {
     uniform sampler2D uDome, uDomeNext; uniform vec4 uDomeShift; uniform float uDomeMix;
     // where a ray that runs q level for each unit it climbs lies in a map
     vec2 domeUv(vec2 q) {
-      float Q = dot(q, q), up = (sqrt(1.0 + Q * ${f(1 - DIP * DIP, 6)}) - Q * ${f(DIP)}) / (1.0 + Q);
-      return 0.5 + q * ((up + ${f(DIP)}) / (1.0 + up) * ${f(0.5 / RIM, 6)});
+      float Q = dot(q, q), up = (sqrt(1.0 + Q * ${formatFloat(1 - DIP * DIP, 6)}) - Q * ${formatFloat(DIP)}) / (1.0 + Q);
+      return 0.5 + q * ((up + ${formatFloat(DIP)}) / (1.0 + up) * ${formatFloat(0.5 / RIM, 6)});
     }
     vec4 cloudDome(vec3 d) {
-      vec2 q = d.xz / (max(d.y, 0.0) + ${f(DIP)});
+      vec2 q = d.xz / (max(d.y, 0.0) + ${formatFloat(DIP)});
       vec4 c = textureLod(uDome, domeUv(q + uDomeShift.xy), 0.0);
       if (uDomeMix > 0.0) c = mix(c, textureLod(uDomeNext, domeUv(q + uDomeShift.zw), 0.0), uDomeMix);
       return c;
@@ -200,12 +200,12 @@ export function createCloudDome({ renderer, field, warmProgram }) {
   function equalBands(size, bands) {
     const below = y => 0.5 + (y * Math.sqrt(1 - y * y) + Math.asin(y)) / Math.PI, // the share of a circle below y (-1 its foot, 1 its top)
       rows = [0];
-    for (let k = 1; k < bands; k++) {
+    for (let bandIndex = 1; bandIndex < bands; bandIndex++) {
       let low = -1,
         high = 1;
       for (let i = 0; i < 30; i++) {
         const mid = (low + high) / 2;
-        if (below(mid) < k / bands) low = mid;
+        if (below(mid) < bandIndex / bands) low = mid;
         else high = mid;
       }
       rows.push(Math.round(((low + 1) / 2) * size));
@@ -241,8 +241,8 @@ export function createCloudDome({ renderer, field, warmProgram }) {
       STEPS: level.steps,
       MAX_STEPS: level.most,
       LIGHT_STEPS: level.light,
-      L_FIRST: f(level.first),
-      L_GROW: f(level.grow),
+      L_FIRST: formatFloat(level.first),
+      L_GROW: formatFloat(level.grow),
       FINE: level.fine,
     });
     domeMat.needsUpdate = true;
@@ -293,7 +293,7 @@ export function createCloudDome({ renderer, field, warmProgram }) {
   // sky where the maps lie. light: towards the sun or the moon, whichever lights the clouds; threshold: the field's value
   // where cloud begins; seconds: the world's time; bright: how strong that light is now (a dark one may turn unseen, as when
   // the moon takes over from the sun that has set).
-  function updateCloudDome(dt, light, threshold, seconds, bright, region) {
+  function updateCloudDome(deltaSeconds, light, threshold, seconds, bright, region) {
     const { level, last } = dome,
       sheet = cloudU.uCloudField.value,
       billows = cloudBillows.value;
@@ -320,7 +320,7 @@ export function createCloudDome({ renderer, field, warmProgram }) {
       dome.band = 0;
       dome.mix = 0;
     } else if (dome.fading) {
-      dome.mix += dt / FADE;
+      dome.mix += deltaSeconds / FADE;
       if (dome.mix >= 1) {
         const shown = dome.next,
           at = dome.nextAt;

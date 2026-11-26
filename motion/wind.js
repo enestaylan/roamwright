@@ -26,21 +26,21 @@ export function createWind({ speed: BREEZE = 1, swing: SWING = 0.16, direction: 
   let lastT = 0;
 
   /**
-   * @param {number} t - Total elapsed simulation time in seconds. Drift advances by at most 0.25 seconds per update.
+   * @param {number} elapsedSeconds - Total elapsed simulation time in seconds. Drift advances by at most 0.25 seconds per update.
    * @param {number} squall - Squall strength from 0 to 1. Pass zero for fair weather.
    */
-  function updateWind(t, squall) {
-    const a = QUARTER + SWING * Math.sin(t * 0.071),
-      g = clamp(0.5 + 0.22 * Math.sin(t * 0.21) + 0.18 * Math.sin(t * 0.077 + 1.3) + 0.1 * Math.sin(t * 0.53 + 2.1), 0, 1);
-    wind.x = Math.cos(a);
-    wind.z = Math.sin(a);
-    wind.gust = Math.max(g, squall);
-    wind.speed = BREEZE * (0.75 + 0.5 * g) * (1 + SQUALL * squall);
+  function updateWind(elapsedSeconds, squall) {
+    const heading = QUARTER + SWING * Math.sin(elapsedSeconds * 0.071),
+      gustStrength = clamp(0.5 + 0.22 * Math.sin(elapsedSeconds * 0.21) + 0.18 * Math.sin(elapsedSeconds * 0.077 + 1.3) + 0.1 * Math.sin(elapsedSeconds * 0.53 + 2.1), 0, 1);
+    wind.x = Math.cos(heading);
+    wind.z = Math.sin(heading);
+    wind.gust = Math.max(gustStrength, squall);
+    wind.speed = BREEZE * (0.75 + 0.5 * gustStrength) * (1 + SQUALL * squall);
     windU.uWind.value.set(wind.x * wind.speed, wind.z * wind.speed, wind.gust);
-    const dt = Math.min(0.25, Math.max(0, t - lastT)); // a long pause carries nothing far
-    lastT = t;
-    windU.uWindDrift.value.x += wind.x * wind.speed * dt;
-    windU.uWindDrift.value.y += wind.z * wind.speed * dt;
+    const deltaSeconds = Math.min(0.25, Math.max(0, elapsedSeconds - lastT)); // a long pause carries nothing far
+    lastT = elapsedSeconds;
+    windU.uWindDrift.value.x += wind.x * wind.speed * deltaSeconds;
+    windU.uWindDrift.value.y += wind.z * wind.speed * deltaSeconds;
   }
   return { wind, uniforms: windU, update: updateWind };
 }

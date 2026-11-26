@@ -151,18 +151,18 @@ export function createFarShadow({scene, camera, direction, ground, config: FAR, 
       size = farSun.shadow.mapSize.x,
       across = (2 * R) / size,
       upward = span / size;
-    const c = farSun.shadow.camera;
-    c.left = -R;
-    c.right = R;
-    c.bottom = Math.round((top + bottom - span) / 2 / upward) * upward;
-    c.top = c.bottom + span;
-    c.updateProjectionMatrix();
+    const shadowCamera = farSun.shadow.camera;
+    shadowCamera.left = -R;
+    shadowCamera.right = R;
+    shadowCamera.bottom = Math.round((top + bottom - span) / 2 / upward) * upward;
+    shadowCamera.top = shadowCamera.bottom + span;
+    shadowCamera.updateProjectionMatrix();
     snapToTexels(farSun.target.position, x, y0, z, L, across, upward);
     farSun.position.copy(farSun.target.position).addScaledVector(L, FAR.lift);
   }
-  function updateFarShadow(dt) {
+  function updateFarShadow(deltaSeconds) {
     if (!farSun.castShadow || !active()) return;
-    drawn.age += dt;
+    drawn.age += deltaSeconds;
     const yaw = camera.rotation.y,
       x = camera.position.x - Math.sin(yaw) * FAR.range * FAR.lead,
       z = camera.position.z - Math.cos(yaw) * FAR.range * FAR.lead;

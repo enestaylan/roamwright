@@ -45,28 +45,28 @@ export function createBipedStride({ rig, foot, pace, ground }) {
   // high. Striding, a foot on the ground stays where it was set down, so it is carried back as the body goes forward, and a foot
   // in the air swings from where it left the ground to where it will land; `drift` makes it leave and meet the ground moving as
   // the ground does. Standing, a foot that is not where the pose wants it steps there (`mayStep`: one foot at a time).
-  function footAt(a, i, u, duty, landing, drift, lift, gone, striding, stance, mayStep, dt) {
-    const F = a.feet;
+  function footAt(actor, i, u, duty, landing, drift, lift, gone, striding, stance, mayStep, deltaSeconds) {
+    const feet = actor.feet;
     let air = 0;
     if (striding) {
       const back = gone < 0;
       if (u < duty) {
-        F[i] -= gone;
-        F[i + 2] = F[i];
+        feet[i] -= gone;
+        feet[i + 2] = feet[i];
       } else {
         const s = back ? 1 - (u - duty) / (1 - duty) : (u - duty) / (1 - duty),
           s2 = s * s,
           s3 = s2 * s;
-        F[i] = F[i + 2] + (landing - F[i + 2]) * (3 * s2 - 2 * s3) + drift * (2 * s3 - 3 * s2 + s);
+        feet[i] = feet[i + 2] + (landing - feet[i + 2]) * (3 * s2 - 2 * s3) + drift * (2 * s3 - 3 * s2 + s);
         air = lift * Math.sin(Math.PI * Math.pow(s, 0.8));
       }
     } else {
-      const off = stance - F[i];
-      if (mayStep) F[i] += clamp(off, -foot.settleSpeed * dt, foot.settleSpeed * dt);
+      const off = stance - feet[i];
+      if (mayStep) feet[i] += clamp(off, -foot.settleSpeed * deltaSeconds, foot.settleSpeed * deltaSeconds);
       air = mayStep ? Math.min(foot.settleLift, Math.abs(off) * 0.45) : 0;
-      F[i + 2] = F[i];
+      feet[i + 2] = feet[i];
     }
-    F[i + 4] += (air - F[i + 4]) * Math.min(1, dt * 22);
+    feet[i + 4] += (air - feet[i + 4]) * Math.min(1, deltaSeconds * 22);
   }
   const fraction = x => ((x % 1) + 1) % 1;
   const GROUND_KEPT = 0.04, // metres a foot's spot may move before the ground under it is looked up again
@@ -74,8 +74,8 @@ export function createBipedStride({ rig, foot, pace, ground }) {
   // The ground at (x, z) under foot k (0 left, 1 right; 2 and 3 under their toes) of actor a, looked up again only once the foot
   // has moved (or now and then): a planted or standing foot keeps its height, and no number is made for the garbage each frame
   // (a.footGround: x, z, y and the lookups since, a spot).
-  function groundUnder(a, k, x, z) {
-    const g = a.footGround || (a.footGround = new Float64Array(16).fill(NaN)),
+  function groundUnder(actor, k, x, z) {
+    const g = actor.footGround || (actor.footGround = new Float64Array(16).fill(NaN)),
       i = k * 4;
     if (!(Math.abs(x - g[i]) <= GROUND_KEPT && Math.abs(z - g[i + 1]) <= GROUND_KEPT && g[i + 3] < GROUND_FRESH)) {
       g[i] = x;
@@ -88,78 +88,78 @@ export function createBipedStride({ rig, foot, pace, ground }) {
   }
   // A step's length on a stair: one tread, as far as actor a is on one (kept with the feet: how far on a stair, its tread in
   // metres, and the seconds since an edge of it was seen); `len` otherwise, the walk's own, which a stair's is never longer than.
-  function treadStep(a, len, h) {
-    const F = a.feet;
-    return F && F[13] > 0.01 ? lerp(len, Math.min(len, F[14] / h), F[13]) : len;
+  function treadStep(actor, len, h) {
+    const feet = actor.feet;
+    return feet && feet[13] > 0.01 ? lerp(len, Math.min(len, feet[14] / h), feet[13]) : len;
   }
   // Notes a step's edge of `riser` metres seen under a foot: on a climb or a descent it is a stair's, whose tread is the riser
   // over the slope walked.
-  function stairSeen(a, riser) {
-    const steep = Math.abs(a.slope),
-      F = a.feet;
+  function stairSeen(actor, riser) {
+    const steep = Math.abs(actor.slope),
+      feet = actor.feet;
     if (steep < foot.stairSlope) return;
-    F[14] += (clamp(riser / steep, foot.treadRange[0], foot.treadRange[1]) - F[14]) * 0.25;
-    F[15] = foot.stairMemory;
+    feet[14] += (clamp(riser / steep, foot.treadRange[0], foot.treadRange[1]) - feet[14]) * 0.25;
+    feet[15] = foot.stairMemory;
   }
   // The legs of someone on their feet this frame, written into `step`. lean: the trunk's lean forward; sink: how far the pose
   // lowers the hips; hipZ: how far it shifts them forward; stanceL, stanceR: where the pose plants each foot, forward of the
   // middle; free: standing on open ground (the ground under each foot is then looked up, and a.y set between them); list: how
   // far the hips list as their owner stands with the weight on one leg (the left side down is more).
-  function stride(a, dt, h, lean, sink, hipZ, stanceL, stanceR, free, list, strideScale = 1, liftScale = 1, hipScale = 1) {
-    const v = a.fwd / h,
+  function stride(actor, deltaSeconds, h, lean, sink, hipZ, stanceL, stanceR, free, list, strideScale = 1, liftScale = 1, hipScale = 1) {
+    const v = actor.fwd / h,
       speed = Math.abs(v),
       go = sstep(0.06, 0.5, speed), // how much of a stride the legs take
       run = sstep(pace.runFrom, pace.runFull, speed),
-      shuffle = Math.max(go, 0.45 * Math.max(sstep(0.15, 0.7, a.side / h), sstep(0.6, 2.4, Math.abs(a.spin)))), // feet also lift to turn and to step aside
+      shuffle = Math.max(go, 0.45 * Math.max(sstep(0.15, 0.7, actor.side / h), sstep(0.6, 2.4, Math.abs(actor.spin)))), // feet also lift to turn and to step aside
       striding = shuffle > 0.02,
       len = treadStep(
-        a,
-        Math.min(pace.maxStep, pace.baseStep + pace.stepGain * speed) * strideScale * (1 - 0.35 * Math.min(1, Math.abs(a.slope) * 2.2)),
+        actor,
+        Math.min(pace.maxStep, pace.baseStep + pace.stepGain * speed) * strideScale * (1 - 0.35 * Math.min(1, Math.abs(actor.slope) * 2.2)),
         h,
       ),
       duty = lerp(pace.walkDuty, pace.runDuty, run),
       sweep = 2 * len * duty * go,
-      lift = (lerp(pace.walkLift, pace.runLift, run) * liftScale + Math.max(0, a.slope) * len * 0.45) * shuffle,
-      tip = run * go * pace.runLean + go * clamp(a.slope * 0.2, -0.06, 0.12); // a runner leans into the run, a climber into the hill
+      lift = (lerp(pace.walkLift, pace.runLift, run) * liftScale + Math.max(0, actor.slope) * len * 0.45) * shuffle,
+      tip = run * go * pace.runLean + go * clamp(actor.slope * 0.2, -0.06, 0.12); // a runner leans into the run, a climber into the hill
     // each foot: where it is forward of the middle, where it left the ground, how high it is, its sole's pitch in the stride
     // and the pitch of the ground it stands on; then the roll of both, and the ground each foot goes by (metres)
     // then how far they are on a stair, its tread, and the seconds a stair is still underfoot
-    if (!a.feet) a.feet = [stanceL, stanceR, stanceL, stanceR, 0, 0, 0, 0, 0, 0, 0, NaN, NaN, 0, 0.3, 0];
-    if (striding && !a.striding) a.phase = TAU * (duty - 0.5 + 0.02 + (a.seed > 0.5 ? 0.5 : 0)); // setting off: one foot has just taken the weight, the other leaves the ground
-    a.striding = striding;
-    a.phase += striding
-      ? (Math.PI * dt * (v + (1 - go) * (a.side / h) * 1.4)) / len + (1 - go) * Math.abs(a.spin) * dt * 1.6
-      : dt * pace.idleRate;
+    if (!actor.feet) actor.feet = [stanceL, stanceR, stanceL, stanceR, 0, 0, 0, 0, 0, 0, 0, NaN, NaN, 0, 0.3, 0];
+    if (striding && !actor.striding) actor.phase = TAU * (duty - 0.5 + 0.02 + (actor.seed > 0.5 ? 0.5 : 0)); // setting off: one foot has just taken the weight, the other leaves the ground
+    actor.striding = striding;
+    actor.phase += striding
+      ? (Math.PI * deltaSeconds * (v + (1 - go) * (actor.side / h) * 1.4)) / len + (1 - go) * Math.abs(actor.spin) * deltaSeconds * 1.6
+      : deltaSeconds * pace.idleRate;
     lean += tip;
-    const uL = fraction(a.phase / TAU),
+    const uL = fraction(actor.phase / TAU),
       uR = fraction(uL + 0.5),
       sinL = Math.sin(lean),
       cosL = Math.cos(lean),
       hipAt = rig.hipHeight * sinL + hipZ, // the hips forward of the point between the feet; a stride is taken under them
       landing = hipAt * go + (v < 0 ? -sweep : sweep) / 2,
       drift = ((v < 0 ? sweep : -sweep) * (1 - duty)) / duty,
-      gone = (a.fwd * dt) / h,
-      F = a.feet,
-      leftFirst = Math.abs(stanceL - F[0]) >= Math.abs(stanceR - F[1]); // of two feet out of place, the one further out steps first
-    footAt(a, 0, uL, duty, landing, drift, lift, gone, striding, stanceL, leftFirst || Math.abs(stanceR - F[1]) < 0.03, dt);
-    footAt(a, 1, uR, duty, landing, drift, lift, gone, striding, stanceR, !leftFirst || Math.abs(stanceL - F[0]) < 0.03, dt);
+      gone = (actor.fwd * deltaSeconds) / h,
+      feet = actor.feet,
+      leftFirst = Math.abs(stanceL - feet[0]) >= Math.abs(stanceR - feet[1]); // of two feet out of place, the one further out steps first
+    footAt(actor, 0, uL, duty, landing, drift, lift, gone, striding, stanceL, leftFirst || Math.abs(stanceR - feet[1]) < 0.03, deltaSeconds);
+    footAt(actor, 1, uR, duty, landing, drift, lift, gone, striding, stanceR, !leftFirst || Math.abs(stanceL - feet[0]) < 0.03, deltaSeconds);
     // the hips turn with the leg that leads and drop on the side of the one in the air, which carries each leg's joint forward
     // or back and up or down: the legs are solved from where their joints then are, so the feet stay where they are planted
     const turn = Math.cos(TAU * uL) * go * lerp(pace.hipTurn[0], pace.hipTurn[1], run) * hipScale,
       listed = list - Math.cos(TAU * (uL - duty / 2)) * go * pace.hipDrop * hipScale,
-      jointZ = a.lx * Math.sin(turn), // the left leg's joint forward of the hips' middle, and the right one's behind it
-      jointY = a.lx * Math.sin(listed), // the right leg's joint above the hips' middle, and the left one's below it
-      zL = F[0],
-      zR = F[1],
-      airL = F[4],
-      airR = F[5],
-      soleEase = Math.min(1, dt * foot.response),
+      jointZ = actor.lx * Math.sin(turn), // the left leg's joint forward of the hips' middle, and the right one's behind it
+      jointY = actor.lx * Math.sin(listed), // the right leg's joint above the hips' middle, and the left one's below it
+      zL = feet[0],
+      zR = feet[1],
+      airL = feet[4],
+      airR = feet[5],
+      soleEase = Math.min(1, deltaSeconds * foot.response),
       roll = go * (v < 0 ? foot.reverseRoll : 1),
       strike = roll * lerp(foot.heelStrike[0], foot.heelStrike[1], run),
       push = roll * lerp(foot.pushOff[0], foot.pushOff[1], run);
     // each sole rolls from heel to toe through its stride
-    F[6] += ((striding ? solePitch(foot, uL, duty, v < 0, strike, push) : 0) - F[6]) * soleEase;
-    F[7] += ((striding ? solePitch(foot, uR, duty, v < 0, strike, push) : 0) - F[7]) * soleEase;
+    feet[6] += ((striding ? solePitch(foot, uL, duty, v < 0, strike, push) : 0) - feet[6]) * soleEase;
+    feet[7] += ((striding ? solePitch(foot, uR, duty, v < 0, strike, push) : 0) - feet[7]) * soleEase;
     let groundL = 0,
       groundR = 0,
       over = 0,
@@ -167,77 +167,77 @@ export function createBipedStride({ rig, foot, pace, ground }) {
       slopeR = 0,
       across = 0;
     if (free) {
-      const cy = Math.cos(a.yaw),
-        sy = Math.sin(a.yaw),
-        wide = a.lx * h,
+      const cy = Math.cos(actor.yaw),
+        sy = Math.sin(actor.yaw),
+        wide = actor.lx * h,
         ahead = foot.sampleAhead * h,
-        xL = a.x - cy * wide + sy * zL * h,
-        xR = a.x + cy * wide + sy * zR * h,
-        atL = a.z + sy * wide + cy * zL * h,
-        atR = a.z - sy * wide + cy * zR * h,
-        gL = groundUnder(a, 0, xL, atL),
-        gR = groundUnder(a, 1, xR, atR);
+        xL = actor.x - cy * wide + sy * zL * h,
+        xR = actor.x + cy * wide + sy * zR * h,
+        atL = actor.z + sy * wide + cy * zL * h,
+        atR = actor.z - sy * wide + cy * zR * h,
+        gL = groundUnder(actor, 0, xL, atL),
+        gR = groundUnder(actor, 1, xR, atR);
       // the ground each foot goes by follows what is under it: at once under a foot that stands, over a moment under one in the
       // air, so that a step's edge crossed in mid-stride (a stair, a kerb) carries the foot and the hips up to it instead of
       // jerking them there, and the foot is lifted higher to clear it
-      if (!(Math.abs(gL - F[11]) < foot.snapHeight)) F[11] = gL;
-      if (!(Math.abs(gR - F[12]) < foot.snapHeight)) F[12] = gR;
-      F[11] += (gL - F[11]) * Math.min(1, dt * foot.groundResponse[airL < 0.004 ? 0 : 1]);
-      F[12] += (gR - F[12]) * Math.min(1, dt * foot.groundResponse[airR < 0.004 ? 0 : 1]);
-      a.y = (F[11] + F[12]) / 2;
-      groundL = clamp((F[11] - a.y) / h, -0.3, 0.3);
+      if (!(Math.abs(gL - feet[11]) < foot.snapHeight)) feet[11] = gL;
+      if (!(Math.abs(gR - feet[12]) < foot.snapHeight)) feet[12] = gR;
+      feet[11] += (gL - feet[11]) * Math.min(1, deltaSeconds * foot.groundResponse[airL < 0.004 ? 0 : 1]);
+      feet[12] += (gR - feet[12]) * Math.min(1, deltaSeconds * foot.groundResponse[airR < 0.004 ? 0 : 1]);
+      actor.y = (feet[11] + feet[12]) / 2;
+      groundL = clamp((feet[11] - actor.y) / h, -0.3, 0.3);
       groundR = -groundL;
       over = lift > 0.01 ? Math.min(foot.stepClearance[1], (Math.abs(gL - gR) / h) * foot.stepClearance[0]) / lift : 0;
       // a planted sole lies along the ground under it: the slope from the ankle's line to the toes, unless that is a step's
       // edge; a foot in the air keeps the slope it left
-      slopeL = F[8];
-      slopeR = F[9];
+      slopeL = feet[8];
+      slopeR = feet[9];
       if (airL < 0.01) {
-        const grade = (groundUnder(a, 2, xL + sy * ahead, atL + cy * ahead) - gL) / ahead;
+        const grade = (groundUnder(actor, 2, xL + sy * ahead, atL + cy * ahead) - gL) / ahead;
         slopeL = Math.abs(grade) < foot.edgeSlope ? -Math.atan(grade) : 0;
-        if (!slopeL && grade) stairSeen(a, Math.abs(grade) * ahead);
+        if (!slopeL && grade) stairSeen(actor, Math.abs(grade) * ahead);
       }
       if (airR < 0.01) {
-        const grade = (groundUnder(a, 3, xR + sy * ahead, atR + cy * ahead) - gR) / ahead;
+        const grade = (groundUnder(actor, 3, xR + sy * ahead, atR + cy * ahead) - gR) / ahead;
         slopeR = Math.abs(grade) < foot.edgeSlope ? -Math.atan(grade) : 0;
-        if (!slopeR && grade) stairSeen(a, Math.abs(grade) * ahead);
+        if (!slopeR && grade) stairSeen(actor, Math.abs(grade) * ahead);
       }
       across = Math.abs(gR - gL) < foot.edgeSlope * 2 * wide ? Math.atan((gR - gL) / (2 * wide)) : 0;
     }
-    F[15] = Math.max(0, F[15] - dt);
-    F[13] += ((F[15] > 0 && striding ? 1 : 0) - F[13]) * Math.min(1, dt * foot.stairResponse);
-    F[8] += (clamp(slopeL, -foot.maxSlopeAngle, foot.maxSlopeAngle) - F[8]) * soleEase;
-    F[9] += (clamp(slopeR, -foot.maxSlopeAngle, foot.maxSlopeAngle) - F[9]) * soleEase;
-    F[10] += (clamp(across, -foot.maxSlopeAngle, foot.maxSlopeAngle) - F[10]) * soleEase;
+    feet[15] = Math.max(0, feet[15] - deltaSeconds);
+    feet[13] += ((feet[15] > 0 && striding ? 1 : 0) - feet[13]) * Math.min(1, deltaSeconds * foot.stairResponse);
+    feet[8] += (clamp(slopeL, -foot.maxSlopeAngle, foot.maxSlopeAngle) - feet[8]) * soleEase;
+    feet[9] += (clamp(slopeR, -foot.maxSlopeAngle, foot.maxSlopeAngle) - feet[9]) * soleEase;
+    feet[10] += (clamp(across, -foot.maxSlopeAngle, foot.maxSlopeAngle) - feet[10]) * soleEase;
     // where each ankle then is: forward of the middle, and above the ground
-    ankleOffset(_ankle, rig, F[6], F[8]);
+    ankleOffset(_ankle, rig, feet[6], feet[8]);
     const ankleZL = zL + _ankle[0],
       ankleYL = groundL + airL * (1 + over) + _ankle[1];
-    ankleOffset(_ankle, rig, F[7], F[9]);
+    ankleOffset(_ankle, rig, feet[7], feet[9]);
     const ankleZR = zR + _ankle[0],
       ankleYR = groundR + airR * (1 + over) + _ankle[1];
     // the hips ride as high as the pose asks and the planted legs allow
     let hip = rig.hipHeight * cosL + sink + run * go * (pace.runDip - pace.runBob * Math.cos(2 * TAU * (uL - duty / 2)));
     if (airL < 0.004) hip = Math.min(hip, ankleYL + jointY + Math.sqrt(Math.max(0.05, reach * reach - (ankleZL - hipAt - jointZ) ** 2)));
     if (airR < 0.004) hip = Math.min(hip, ankleYR - jointY + Math.sqrt(Math.max(0.05, reach * reach - (ankleZR - hipAt + jointZ) ** 2)));
-    a.hip = Number.isNaN(a.hip) ? hip : a.hip + (hip - a.hip) * Math.min(1, dt * pace.hipResponse);
+    actor.hip = Number.isNaN(actor.hip) ? hip : actor.hip + (hip - actor.hip) * Math.min(1, deltaSeconds * pace.hipResponse);
     // each leg from the hip to its ankle, in the leaning trunk's own frame
     let z = ankleZL - hipAt - jointZ,
-      y = ankleYL - a.hip + jointY;
+      y = ankleYL - actor.hip + jointY;
     solveBipedLeg(_leg, rig, z * cosL - y * sinL, y * cosL + z * sinL, 0.3);
     step.thighL = _leg[0];
     step.kneeL = _leg[1];
     z = ankleZR - hipAt + jointZ;
-    y = ankleYR - a.hip - jointY;
+    y = ankleYR - actor.hip - jointY;
     solveBipedLeg(_leg, rig, z * cosL - y * sinL, y * cosL + z * sinL, 0.3);
     step.thighR = _leg[0];
     step.kneeR = _leg[1];
-    step.soleL = F[6] + F[8] - lean; // against the leaning trunk the legs are solved in
-    step.soleR = F[7] + F[9] - lean;
-    step.toesL = -Math.max(0, F[6]) * sstep(foot.toeReleaseHeight, 0, airL); // the toes stay on the ground while the heel rises
-    step.toesR = -Math.max(0, F[7]) * sstep(foot.toeReleaseHeight, 0, airR);
-    step.roll = F[10];
-    step.rise = a.hip - rig.hipHeight * cosL;
+    step.soleL = feet[6] + feet[8] - lean; // against the leaning trunk the legs are solved in
+    step.soleR = feet[7] + feet[9] - lean;
+    step.toesL = -Math.max(0, feet[6]) * sstep(foot.toeReleaseHeight, 0, airL); // the toes stay on the ground while the heel rises
+    step.toesR = -Math.max(0, feet[7]) * sstep(foot.toeReleaseHeight, 0, airR);
+    step.roll = feet[10];
+    step.rise = actor.hip - rig.hipHeight * cosL;
     step.swing = Math.cos(TAU * uL) * go; // 1 as the left foot lands ahead, -1 as the right does
     step.arms = Math.cos(TAU * (uL - pace.armLag)) * go; // the arms' swing against it: 1 with the left arm furthest back
     step.bearing = Math.cos(TAU * (uL - duty / 2)) * go * (1 - run); // 1 with the weight over the left foot, -1 over the right

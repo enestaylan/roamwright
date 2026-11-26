@@ -8,10 +8,10 @@ export function joinParts(pieces) {
   for (const name in sample) {
     const size = vertices && sample[name].length / (sample.position.length / 3),
       array = (joined[name] = new sample[name].constructor(vertices * size));
-    let at = 0;
+    let writeOffset = 0;
     for (const [parts, from, to] of pieces) {
-      array.set(parts[name].subarray((from / 3) * size, (to / 3) * size), at);
-      at += ((to - from) / 3) * size;
+      array.set(parts[name].subarray((from / 3) * size, (to / 3) * size), writeOffset);
+      writeOffset += ((to - from) / 3) * size;
     }
   }
   return joined;

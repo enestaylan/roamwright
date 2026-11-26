@@ -22,9 +22,9 @@ export function createSkyOcclusionShader({minimum, underCover}) {
       return mix(1.0, ${minimum.toFixed(2)} + ${(1 - minimum).toFixed(2)} * open, uSkyOn * reach);
     }
   `;
-  function patch(sh, more = '') {
-    Object.assign(sh.uniforms, uniforms);
-    sh.fragmentShader = sh.fragmentShader
+  function patch(shader, more = '') {
+    Object.assign(shader.uniforms, uniforms);
+    shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + SKY_OPEN)
       .replace(
         '#include <lights_fragment_begin>',
@@ -37,7 +37,7 @@ export function createSkyOcclusionShader({minimum, underCover}) {
 // Two passes: record overhead caster height, then integrate the horizon in eight directions.
 // The first map is available immediately. Subsequent height and horizon passes alternate frames.
 export function createSkyOcclusion({renderer, scene, camera, uniforms, config, samples, ground, strength,
-  occludes = o => o.isMesh && o.castShadow, warmup}) {
+  occludes = object => object.isMesh && object.castShadow, warmup}) {
   const {compiled, warmStandIns, compilingNow} = warmup;
   const heights = new THREE.WebGLRenderTarget(config.size, config.size, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   const openness = new THREE.WebGLRenderTarget(config.size, config.size, {
@@ -72,7 +72,7 @@ export function createSkyOcclusion({renderer, scene, camera, uniforms, config, s
             float a = float(i) * 0.7853982;
             vec2 dir = vec2(cos(a), sin(a)) / (uTexel * ${config.size.toFixed(1)});
             float rise = 0.0, top = h0;
-            ${samples.map(d => `{ float h = heightAt(vUv + dir * ${d.toFixed(2)}); rise = max(rise, (h - h0) / ${d.toFixed(2)}); top = max(top, h); }`).join('\n          ')}
+            ${samples.map(sampleDistance => `{ float h = heightAt(vUv + dir * ${sampleDistance.toFixed(2)}); rise = max(rise, (h - h0) / ${sampleDistance.toFixed(2)}); top = max(top, h); }`).join('\n          ')}
             sky += 1.0 / (1.0 + rise * rise);
             tops += top;
           }
@@ -84,7 +84,7 @@ export function createSkyOcclusion({renderer, scene, camera, uniforms, config, s
   const passScene = new THREE.Scene().add(openPass),
     passCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  const depthFor = o => (!occludes(o) ? null : o.isInstancedMesh ? (o.instanceColor ? depthOf.tinted : depthOf.instanced) : depthOf.plain);
+  const depthFor = object => (!occludes(object) ? null : object.isInstancedMesh ? (object.instanceColor ? depthOf.tinted : depthOf.instanced) : depthOf.plain);
   const pending = Object.assign(new THREE.Vector4(), { due: false }),
     hidden = [],
     dressed = [],
@@ -101,17 +101,17 @@ export function createSkyOcclusion({renderer, scene, camera, uniforms, config, s
     const shadows = renderer.shadowMap.autoUpdate, clearAlpha = renderer.getClearAlpha(), fog = scene.fog;
     renderer.getClearColor(_clear);
     try {
-      scene.traverse(o => {
-        if (!o.visible || !(o.isMesh || o.isPoints || o.isLine || o.isSprite)) return;
-        const depth = depthFor(o);
+      scene.traverse(object => {
+        if (!object.visible || !(object.isMesh || object.isPoints || object.isLine || object.isSprite)) return;
+        const depth = depthFor(object);
         if (!depth) {
-          o.visible = false;
-          hidden.push(o);
+          object.visible = false;
+          hidden.push(object);
           return;
         }
-        dressed.push(o);
-        worn.push(o.material);
-        o.material = depth;
+        dressed.push(object);
+        worn.push(object.material);
+        object.material = depth;
       });
       renderer.shadowMap.autoUpdate = false;
       renderer.setRenderTarget(heights);
@@ -152,7 +152,7 @@ export function createSkyOcclusion({renderer, scene, camera, uniforms, config, s
   }
 
   const drawn = { x: NaN, z: NaN, age: 0 };
-  function update(dt) {
+  function update(deltaSeconds) {
     const x = camera.position.x,
       z = camera.position.z,
       high = camera.position.y - ground(x, z),
@@ -163,7 +163,7 @@ export function createSkyOcclusion({renderer, scene, camera, uniforms, config, s
       workOutOpenness();
       return;
     }
-    drawn.age += dt;
+    drawn.age += deltaSeconds;
     if (Math.hypot(x - drawn.x, z - drawn.z) < config.step && drawn.age < config.every) return;
     const first = Number.isNaN(drawn.x);
     drawHeights(x, z);

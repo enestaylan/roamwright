@@ -1,10 +1,10 @@
 // Rows of baked grids, cut out to be sent from a worker and put back in their place on the page. A grid is a typed array of
 // `rows` rows, with any number of values to a row (a height, three of a normal, four of a cover).
 
-// Copy the half-open row interval [j0, j1) from each grid.
-const cutRows = (grids, rows, j0, j1) => grids.map(grid => grid.slice((j0 * grid.length) / rows, (j1 * grid.length) / rows));
-// Puts what cutRows cut back into grids of the same shapes, from row j0 on.
-const pasteRows = (grids, rows, j0, cut) => grids.forEach((grid, i) => grid.set(cut[i], (j0 * grid.length) / rows));
+// Copy the half-open row interval [startRow, endRow) from each grid.
+const cutRows = (grids, rows, startRow, endRow) => grids.map(grid => grid.slice((startRow * grid.length) / rows, (endRow * grid.length) / rows));
+// Puts what cutRows cut back into grids of the same shapes, starting at startRow.
+const pasteRows = (grids, rows, startRow, bandData) => grids.forEach((grid, i) => grid.set(bandData[i], (startRow * grid.length) / rows));
 
 function checkBandSize(size) {
   if (!Number.isSafeInteger(size) || size <= 0) throw new RangeError('Band size must be a positive integer');
@@ -32,8 +32,8 @@ async function fillRowBands(grids, rows, bandSize, request, from = 0, to = rows)
       from < 0 || to < from || to > rows) throw new RangeError('Invalid row interval');
   const pending = [];
   async function fill(start, end) {
-    const cut = await request(start, end);
-    pasteRows(grids, rows, start, cut);
+    const bandData = await request(start, end);
+    pasteRows(grids, rows, start, bandData);
   }
   for (let start = from; start < to; start += bandSize)
     pending.push(fill(start, Math.min(start + bandSize, to)));

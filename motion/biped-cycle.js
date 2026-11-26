@@ -33,10 +33,10 @@ export function createBipedCycle({ rig, foot }) {
     leg.foot -= leg.thigh + leg.knee;
   }
   return function sample(phase, stride, duty, clearance, grade, hipHeight, roll = 1, stagger = 0) {
-    const p = phase - Math.floor(phase), slope = -Math.atan(grade);
+    const cyclePhase = phase - Math.floor(phase), slope = -Math.atan(grade);
     pose.hipHeight = hipHeight;
-    target(pose.left, p, stride, duty, clearance, grade, slope, roll, -stagger);
-    target(pose.right, (p + 0.5) % 1, stride, duty, clearance, grade, slope, roll, stagger);
+    target(pose.left, cyclePhase, stride, duty, clearance, grade, slope, roll, -stagger);
+    target(pose.right, (cyclePhase + 0.5) % 1, stride, duty, clearance, grade, slope, roll, stagger);
     solve(pose.left);
     solve(pose.right);
     return pose;

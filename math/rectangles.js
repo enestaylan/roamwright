@@ -1,17 +1,17 @@
 /** Distance in world units from a point to a yawed rectangle, zero inside.
  * Supply the centre, half width and depth, yaw in radians, and the query point. */
-export function distanceToRectangle(cx, cz, hw, hd, rot, px, pz) {
-  const dx = px - cx,
-    dz = pz - cz,
-    c = Math.cos(rot),
-    s = Math.sin(rot);
-  return Math.hypot(Math.max(Math.abs(dx * c - dz * s) - hw, 0), Math.max(Math.abs(dx * s + dz * c) - hd, 0));
+export function distanceToRectangle(centerX, centerZ, halfWidth, halfDepth, rotation, pointX, pointZ) {
+  const dx = pointX - centerX,
+    dz = pointZ - centerZ,
+    cosRotation = Math.cos(rotation),
+    sinRotation = Math.sin(rotation);
+  return Math.hypot(Math.max(Math.abs(dx * cosRotation - dz * sinRotation) - halfWidth, 0), Math.max(Math.abs(dx * sinRotation + dz * cosRotation) - halfDepth, 0));
 }
 
 /** Four x-z perimeter corners, using full dimensions and a yaw in radians. */
-export function rectangleCorners(cx, cz, w, d, rot) {
-  const c = Math.cos(rot),
-    s = Math.sin(rot),
+export function rectangleCorners(centerX, centerZ, width, depth, rotation) {
+  const cosRotation = Math.cos(rotation),
+    sinRotation = Math.sin(rotation),
     o = [];
   for (const [u, v] of [
     [1, 1],
@@ -19,15 +19,15 @@ export function rectangleCorners(cx, cz, w, d, rot) {
     [-1, -1],
     [-1, 1],
   ])
-    o.push([cx + (u * w * c + v * d * s) / 2, cz + (-u * w * s + v * d * c) / 2]);
+    o.push([centerX + (u * width * cosRotation + v * depth * sinRotation) / 2, centerZ + (-u * width * sinRotation + v * depth * cosRotation) / 2]);
   return o;
 }
 
 // Strict overlap of two nondegenerate rectangles given four perimeter corners each. Touching edges have no area in common.
-export function rectanglesOverlap(A, B) {
+export function rectanglesOverlap(firstCorners, secondCorners) {
   for (const [P1, P2] of [
-    [A, B],
-    [B, A],
+    [firstCorners, secondCorners],
+    [secondCorners, firstCorners],
   ])
     for (let i = 0; i < 2; i++) {
       const ax = P1[i + 1][0] - P1[i][0],

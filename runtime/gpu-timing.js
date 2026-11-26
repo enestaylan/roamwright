@@ -53,24 +53,24 @@ export function createGpuTiming(renderer) {
   // when no measurement can begin (no such query here, or the last one has not been answered yet); cardWork() gives the last
   // answer in milliseconds, or null if there has been none.
   let timer; // the extension, once asked for (null where there is none)
-  let asked = null, // the query waiting for its answer
+  let pendingQuery = null, // the query waiting for its answer
     work = null;
   function timeCard() {
     const gl = renderer.getContext();
     if (timer === undefined) timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     if (!timer) return null;
-    if (asked) {
-      if (!gl.getQueryParameter(asked, gl.QUERY_RESULT_AVAILABLE)) return null;
-      if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) work = gl.getQueryParameter(asked, gl.QUERY_RESULT) / NANOSECONDS_IN_MS;
-      gl.deleteQuery(asked);
-      asked = null;
+    if (pendingQuery) {
+      if (!gl.getQueryParameter(pendingQuery, gl.QUERY_RESULT_AVAILABLE)) return null;
+      if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) work = gl.getQueryParameter(pendingQuery, gl.QUERY_RESULT) / NANOSECONDS_IN_MS;
+      gl.deleteQuery(pendingQuery);
+      pendingQuery = null;
     }
     const query = gl.createQuery();
     if (!query) return null;
     gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
     return () => {
       gl.endQuery(timer.TIME_ELAPSED_EXT);
-      asked = query;
+      pendingQuery = query;
     };
   }
   const cardWork = () => work;

@@ -19,8 +19,8 @@ export function createInstanceSight({ widthFraction = 0.7, nearSubject = 0.6 } =
         max: { x: x1, y: y1, z: z1 },
       } = geometry.boundingBox);
     } else {
-      const { center: c, radius: r } = geometry.boundingSphere;
-      [x0, x1, y0, y1, z0, z1] = [c.x - r * 0.7, c.x + r * 0.7, 0, c.y + r * 0.7, c.z - r * 0.7, c.z + r * 0.7];
+      const { center: localCenter, radius: localRadius } = geometry.boundingSphere;
+      [x0, x1, y0, y1, z0, z1] = [localCenter.x - localRadius * 0.7, localCenter.x + localRadius * 0.7, 0, localCenter.y + localRadius * 0.7, localCenter.z - localRadius * 0.7, localCenter.z + localRadius * 0.7];
     }
     const top = Math.max(y1, 0),
       body = {
@@ -62,17 +62,17 @@ export function createInstanceSight({ widthFraction = 0.7, nearSubject = 0.6 } =
       const { mesh, body } = list[k],
         s = mesh.boundingSphere;
       if (Math.hypot(s.center.x - mx, s.center.y - my, s.center.z - mz) > s.radius + reach * (0.5 + spread)) continue; // the batch is nowhere near
-      const m = mesh.instanceMatrix.array;
+      const matrices = mesh.instanceMatrix.array;
       for (let i = 0; i < mesh.count * 16; i += 16) {
-        const wide = Math.hypot(m[i], m[i + 1], m[i + 2]),
-          tall = Math.hypot(m[i + 4], m[i + 5], m[i + 6]),
-          x = m[i + 12] + m[i] * body.x + m[i + 8] * body.z,
-          z = m[i + 14] + m[i + 2] * body.x + m[i + 10] * body.z,
+        const wide = Math.hypot(matrices[i], matrices[i + 1], matrices[i + 2]),
+          tall = Math.hypot(matrices[i + 4], matrices[i + 5], matrices[i + 6]),
+          x = matrices[i + 12] + matrices[i] * body.x + matrices[i + 8] * body.z,
+          z = matrices[i + 14] + matrices[i + 2] * body.x + matrices[i + 10] * body.z,
           u = flat2 > 1e-6 ? Math.min(1, Math.max(0, ((x - p.x) * dx + (z - p.z) * dz) / flat2)) : 0;
         if ((1 - u) * flat < nearSubject) continue;
         const room = u * flat * spread, // how far the middle of the picture reaches round the line of sight there, in metres
           aside = Math.hypot(p.x + dx * u - x, p.z + dz * u - z) - room,
-          rise = p.y + dy * u - m[i + 13], // the line's height over the plant's foot where it passes nearest
+          rise = p.y + dy * u - matrices[i + 13], // the line's height over the plant's foot where it passes nearest
           crown = body.from * tall;
         if (aside < body.r * wide && rise + room > crown && rise - room < body.top * tall) return true;
         if (aside < body.trunk * wide && rise - room < crown && rise + room > 0) return true;

@@ -37,7 +37,7 @@ export function createCrowdAlarms({
 
   // Raises an alarm at (x, z) at clock t, or renews the one already there.
   function raise(x, z, t, r = reach) {
-    const near = alarms.find(a => Math.hypot(a.x - x, a.z - z) < merge);
+    const near = alarms.find(alarm => Math.hypot(alarm.x - x, alarm.z - z) < merge);
     if (near) {
       near.t = t;
       near.r = Math.max(near.r, r);
@@ -60,66 +60,66 @@ export function createCrowdAlarms({
     if (!stage.on) return;
     const dx = stage.x - at.x,
       dz = stage.z - at.z,
-      d = Math.sqrt(dx * dx + dz * dz);
-    if (d < watchWithin && d > watchBeyond) at.yaw = Math.atan2(dx, dz);
+      distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance < watchWithin && distance > watchBeyond) at.yaw = Math.atan2(dx, dz);
   }
-  // Whether g may be in flight: an alarm is up, or g is still away from their routine.
-  const alarmed = g => alarms.length > 0 || !!g.fx || !!g.fz;
+  // An agent may flee while an alarm is active or while returning to their routine.
+  const alarmed = agent => alarms.length > 0 || !!agent.fx || !!agent.fz;
 
-  // One step of g at clock t: `at` ({ x, z, yaw, speed, travel, focus }) holds where g's routine puts them, and is moved to where
+  // One step of the agent at clock t: `at` ({ x, z, yaw, speed, travel, focus }) holds where the agent’s routine puts them, and is moved to where
   // their flight has them. False when they stand where their routine puts them.
-  function flee(g, at, t) {
+  function flee(agent, at, t) {
     const hx = at.x,
       hz = at.z,
-      dt = g.ft < 0 ? 0 : Math.min(0.1, Math.max(0, t - g.ft));
-    g.ft = t;
-    const x = hx + (g.fx || 0),
-      z = hz + (g.fz || 0);
+      deltaSeconds = agent.ft < 0 ? 0 : Math.min(0.1, Math.max(0, t - agent.ft));
+    agent.ft = t;
+    const x = hx + (agent.fx || 0),
+      z = hz + (agent.fz || 0);
     let near = null,
       nd = Infinity;
     for (let i = 0; i < alarms.length; i++) {
-      const a = alarms[i],
-        ax = x - a.x,
-        az = z - a.z,
-        d = Math.sqrt(ax * ax + az * az);
-      if (d < a.r && d < nd) {
-        nd = d;
-        near = a;
+      const alarm = alarms[i],
+        ax = x - alarm.x,
+        az = z - alarm.z,
+        distance = Math.sqrt(ax * ax + az * az);
+      if (distance < alarm.r && distance < nd) {
+        nd = distance;
+        near = alarm;
       }
     }
     let speed;
     if (near) {
-      const away = nd < 0.01 ? g.ph || 1 : Math.atan2(x - near.x, z - near.z);
-      const k = sstep(0, 0.6, t - near.t + 0.6 - (g.ph % 1) * 0.5); // each starts at their own moment, not all on one beat
-      speed = go(g, x, z, hx, hz, away, run * k * dt, run * k);
+      const away = nd < 0.01 ? agent.ph || 1 : Math.atan2(x - near.x, z - near.z);
+      const k = sstep(0, 0.6, t - near.t + 0.6 - (agent.ph % 1) * 0.5); // each starts at their own moment, not all on one beat
+      speed = go(agent, x, z, hx, hz, away, run * k * deltaSeconds, run * k);
     } else {
-      const fx = g.fx || 0,
-        fz = g.fz || 0,
+      const fx = agent.fx || 0,
+        fz = agent.fz || 0,
         o = Math.sqrt(fx * fx + fz * fz);
       if (o < 0.02) {
-        g.fx = g.fz = 0;
+        agent.fx = agent.fz = 0;
         return false;
       }
-      speed = go(g, x, z, hx, hz, Math.atan2(-g.fx, -g.fz), Math.min(o, walkBack * dt), walkBack);
+      speed = go(agent, x, z, hx, hz, Math.atan2(-agent.fx, -agent.fz), Math.min(o, walkBack * deltaSeconds), walkBack);
     }
-    if (!speed && !g.fx && !g.fz) return false; // hemmed in away from their routine, they stand there rather than leap back to it
-    at.x += g.fx;
-    at.z += g.fz;
-    at.yaw = g.fy;
+    if (!speed && !agent.fx && !agent.fz) return false; // hemmed in away from their routine, they stand there rather than leap back to it
+    at.x += agent.fx;
+    at.z += agent.fz;
+    at.yaw = agent.fy;
     at.speed = speed;
-    at.travel = t * speed + g.ph;
+    at.travel = t * speed + agent.ph;
     at.focus = undefined;
     return true;
   }
-  function go(g, x, z, hx, hz, want, step, speed) {
-    const a = steer(x, z, want, step, body, g.lean);
-    g.fy = a ?? want;
-    if (a === undefined) return 0; // hemmed in: they stand where they are
-    const turn = Math.sin(a - want);
-    if (turn > 0.1) g.lean = 1;
-    else if (turn < -0.1) g.lean = -1;
-    g.fx = x + Math.sin(a) * step - hx;
-    g.fz = z + Math.cos(a) * step - hz;
+  function go(agent, x, z, hx, hz, want, step, speed) {
+    const escapeAngle = steer(x, z, want, step, body, agent.lean);
+    agent.fy = escapeAngle ?? want;
+    if (escapeAngle === undefined) return 0; // hemmed in: they stand where they are
+    const turn = Math.sin(escapeAngle - want);
+    if (turn > 0.1) agent.lean = 1;
+    else if (turn < -0.1) agent.lean = -1;
+    agent.fx = x + Math.sin(escapeAngle) * step - hx;
+    agent.fz = z + Math.cos(escapeAngle) * step - hz;
     return speed;
   }
 

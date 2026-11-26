@@ -113,25 +113,25 @@ export function createPostProcessing({
   const overlay = new THREE.Scene();
   // A scene of one quad that covers the screen, for a post-processing pass.
   function fullScreen(material) {
-    const s = new THREE.Scene(),
-      q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
-    q.frustumCulled = false;
-    s.add(q);
-    return s;
+    const passScene = new THREE.Scene(),
+      fullscreenQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+    fullscreenQuad.frustumCulled = false;
+    passScene.add(fullscreenQuad);
+    return passScene;
   }
   // Depth of field while a scene's shot names a focus (dof.js): eased in over a few frames, and out when none is named.
-  function focus(rn) {
+  function focus(passRenderer) {
     const named = dof.named >= getFrame() - 1;
     dof.weight = named ? Math.min(1, dof.weight + DOF_EASE) : Math.max(0, dof.weight - DOF_EASE);
-    const d = dof.material.uniforms;
-    d.uDof.value.x = dof.focus;
-    d.uDof.value.w = dof.weight;
+    const dofUniforms = dof.material.uniforms;
+    dofUniforms.uDof.value.x = dof.focus;
+    dofUniforms.uDof.value.w = dof.weight;
     if (dof.weight <= 0) return;
-    d.tScene.value = post.sceneRT.texture;
-    d.tDepth.value = post.sceneRT.depthTexture;
-    d.uNF.value.set(camera.near, camera.far);
-    rn.setRenderTarget(dof.target);
-    rn.render(post.dofScene, post.aoCam);
+    dofUniforms.tScene.value = post.sceneRT.texture;
+    dofUniforms.tDepth.value = post.sceneRT.depthTexture;
+    dofUniforms.uNF.value.set(camera.near, camera.far);
+    passRenderer.setRenderTarget(dof.target);
+    passRenderer.render(post.dofScene, post.aoCam);
   }
   // Whether any particle is alive (empty pools have their visibility turned off).
   function particlesShown() {
@@ -142,7 +142,7 @@ export function createPostProcessing({
   // Draws the particles over what is in `target` (null: the screen). With a target of one sample a pixel they fade by the depth the
   // occlusion pass has just kept (Medium and High); without post-processing, or over a multisampled target, they meet the scene hard
   // as before (its depth is not read: a multisampled target's colour is resolved again after them, its depth is not).
-  function drawParticles(rn, target) {
+  function drawParticles(passRenderer, target) {
     if (!particlesShown()) return;
     const soft = target !== null && !post.samples;
     sceneDepth.uSoft.value = soft ? 1 : 0;
@@ -150,14 +150,14 @@ export function createPostProcessing({
       sceneDepth.uDepth.value = post.aoRT.texture;
       sceneDepth.uDepthPx.value.set(1 / post.aoRT.width, 1 / post.aoRT.height);
     }
-    const clears = rn.autoClear,
+    const clears = passRenderer.autoClear,
       resolves = target?.resolveDepthBuffer;
-    rn.autoClear = false;
+    passRenderer.autoClear = false;
     if (target) target.resolveDepthBuffer = false;
-    rn.setRenderTarget(target);
-    rn.render(fxScene, camera);
+    passRenderer.setRenderTarget(target);
+    passRenderer.render(fxScene, camera);
     if (target) target.resolveDepthBuffer = resolves;
-    rn.autoClear = clears;
+    passRenderer.autoClear = clears;
   }
   // Builds the post-processing chain described at the top of this module, with samples of anti-aliasing, and temporal
   // anti-aliasing where taa is true.
@@ -236,45 +236,45 @@ export function createPostProcessing({
       renderToScreen: false,
       setSize(w, h) {
         sceneRT.setSize(w, h);
-        for (const t of [post.aoRT, post.rayRT, post.maskRT, dof.target]) t.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
+        for (const target of [post.aoRT, post.rayRT, post.maskRT, dof.target]) target.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
         sizeHistory(w, h);
-        const d = dof.material.uniforms;
-        d.uPx.value.set(1 / w, 1 / h);
-        d.uDof.value.y = DOF_BLUR * h;
-        d.uDof.value.z = DOF_MOST * h;
+        const dofUniforms = dof.material.uniforms;
+        dofUniforms.uPx.value.set(1 / w, 1 / h);
+        dofUniforms.uDof.value.y = DOF_BLUR * h;
+        dofUniforms.uDof.value.z = DOF_MOST * h;
         mask.uPx.value.set(1 / post.maskRT.width, 1 / post.maskRT.height);
       },
-      render(rn) {
+      render(passRenderer) {
         const u = post.final.uniforms;
-        rn.setRenderTarget(sceneRT);
+        passRenderer.setRenderTarget(sceneRT);
         if (taa) jitterLens(sceneRT.width, sceneRT.height);
-        rn.render(scene, camera);
+        passRenderer.render(scene, camera);
         u.uPx.value.set(1 / sceneRT.width, 1 / sceneRT.height);
         u.uHp.value.set(1 / post.aoRT.width, 1 / post.aoRT.height);
         {
-          const a = post.aoMat.uniforms;
-          a.uPx.value.copy(u.uPx.value);
-          a.uTan.value.copy(u.uTan.value);
-          a.uAspect.value = u.uAspect.value;
-          a.uAO.value = u.uAO.value;
-          a.uContact.value.y = contactStrength();
-          rn.setRenderTarget(post.aoRT);
-          rn.render(post.aoScene, post.aoCam);
+          const occlusionUniforms = post.aoMat.uniforms;
+          occlusionUniforms.uPx.value.copy(u.uPx.value);
+          occlusionUniforms.uTan.value.copy(u.uTan.value);
+          occlusionUniforms.uAspect.value = u.uAspect.value;
+          occlusionUniforms.uAO.value = u.uAO.value;
+          occlusionUniforms.uContact.value.y = contactStrength();
+          passRenderer.setRenderTarget(post.aoRT);
+          passRenderer.render(post.aoScene, post.aoCam);
         }
-        drawParticles(rn, sceneRT);
+        drawParticles(passRenderer, sceneRT);
         if (taa) steadyLens();
-        adaptEye(rn, sceneRT.texture);
+        adaptEye(passRenderer, sceneRT.texture);
         u.tEye.value = eye.level;
         u.uEye.value.x = expectedLogLuminance();
-        focus(rn);
+        focus(passRenderer);
         if (u.uRay.value > 0.002) {
-          rn.setRenderTarget(post.maskRT);
-          rn.render(post.maskScene, camera);
-          const a = post.rayMat.uniforms;
-          a.uSun.value.copy(u.uSun.value);
-          a.uAspect.value = u.uAspect.value;
-          rn.setRenderTarget(post.rayRT);
-          rn.render(post.rayScene, post.aoCam);
+          passRenderer.setRenderTarget(post.maskRT);
+          passRenderer.render(post.maskScene, camera);
+          const rayUniforms = post.rayMat.uniforms;
+          rayUniforms.uSun.value.copy(u.uSun.value);
+          rayUniforms.uAspect.value = u.uAspect.value;
+          passRenderer.setRenderTarget(post.rayRT);
+          passRenderer.render(post.rayScene, post.aoCam);
         }
       },
       dispose() {},
@@ -331,19 +331,19 @@ export function createPostProcessing({
       material: finalMat,
       uniforms: finalMat.uniforms,
       setSize() {}, // sized with the rest by sizePost
-      render(rn) {
+      render(passRenderer) {
         if (taa) {
-          rn.setRenderTarget(historyInto());
-          rn.render(finalScene, post.aoCam);
+          passRenderer.setRenderTarget(historyInto());
+          passRenderer.render(finalScene, post.aoCam);
           present.uniforms.tSrc.value = historyNow().texture;
         }
-        rn.setRenderTarget(upscale.low); // the screen, where the world is drawn at its size
-        rn.render(taa ? presentScene : finalScene, post.aoCam);
+        passRenderer.setRenderTarget(upscale.low); // the screen, where the world is drawn at its size
+        passRenderer.render(taa ? presentScene : finalScene, post.aoCam);
         if (!upscale.low) return;
-        rn.setRenderTarget(upscale.full);
-        rn.render(easuScene, post.aoCam);
-        rn.setRenderTarget(null);
-        rn.render(rcasScene, post.aoCam);
+        passRenderer.setRenderTarget(upscale.full);
+        passRenderer.render(easuScene, post.aoCam);
+        passRenderer.setRenderTarget(null);
+        passRenderer.render(rcasScene, post.aoCam);
       },
       dispose() {},
     };
@@ -371,13 +371,13 @@ export function createPostProcessing({
       mesh = quad.children[0],
       cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const target = () => {
-      const t = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, format: THREE.RGBFormat, depthBuffer: false });
-      t.texture.internalFormat = 'R11F_G11F_B10F';
-      return t;
+      const target = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, format: THREE.RGBFormat, depthBuffer: false });
+      target.texture.internalFormat = 'R11F_G11F_B10F';
+      return target;
     };
-    const blur = (k, first) => {
+    const blur = (kernelSize, first) => {
       const coeff = [];
-      for (let j = 0; j < k; j++) coeff.push((0.39894 * Math.exp((-0.5 * j * j) / (k * k))) / k);
+      for (let j = 0; j < kernelSize; j++) coeff.push((0.39894 * Math.exp((-0.5 * j * j) / (kernelSize * kernelSize))) / kernelSize);
       return new THREE.ShaderMaterial({
         depthTest: false,
         depthWrite: false,
@@ -387,19 +387,19 @@ export function createPostProcessing({
           tSrc: { value: null },
           uStep: { value: new THREE.Vector2() },
           uK: { value: coeff },
-          uTaps: { value: k },
+          uTaps: { value: kernelSize },
           uBright: { value: first },
         },
       });
     };
     // each level is blurred across (hMat) into h, then down (vMat) into v; only the first blur across reads the scene and keeps its bright part
-    const levels = BLOOM.kernels.map((k, i) => {
-      const vMat = blur(k, false);
-      return { h: target(), v: target(), hMat: i === 0 ? blur(k, true) : vMat, vMat };
+    const levels = BLOOM.kernels.map((kernelSize, i) => {
+      const vMat = blur(kernelSize, false);
+      return { h: target(), v: target(), hMat: i === 0 ? blur(kernelSize, true) : vMat, vMat };
     });
     // the levels' weights: strength, times the factor moved towards its mirror by the radius (as Three's composite does)
-    const weights = BLOOM.factors.map(f => {
-      const w = BLOOM.strength * THREE.MathUtils.lerp(f, 1.2 - f, BLOOM.radius);
+    const weights = BLOOM.factors.map(factor => {
+      const w = BLOOM.strength * THREE.MathUtils.lerp(factor, 1.2 - factor, BLOOM.radius);
       return new THREE.Vector3(w, w, w);
     });
     return {
@@ -420,21 +420,21 @@ export function createPostProcessing({
           y = Math.round(y / 2);
         }
       },
-      render(rn) {
+      render(passRenderer) {
         let from = sceneRT.texture;
         for (const l of levels) {
           let u = l.hMat.uniforms;
           mesh.material = l.hMat;
           u.tSrc.value = from;
           u.uStep.value.set(1 / l.size[0], 0);
-          rn.setRenderTarget(l.h);
-          rn.render(quad, cam);
+          passRenderer.setRenderTarget(l.h);
+          passRenderer.render(quad, cam);
           u = l.vMat.uniforms;
           mesh.material = l.vMat;
           u.tSrc.value = l.h.texture;
           u.uStep.value.set(0, 1 / l.size[1]);
-          rn.setRenderTarget(l.v);
-          rn.render(quad, cam);
+          passRenderer.setRenderTarget(l.v);
+          passRenderer.render(quad, cam);
           from = l.v.texture;
         }
       },

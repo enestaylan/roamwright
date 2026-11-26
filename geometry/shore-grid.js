@@ -11,10 +11,10 @@ import { clamp, lerp } from '../math/scalar.js';
  */
 export const outlineEdges = outline =>
   outline.map(([x, z], i) => {
-    const [ex, ez] = outline[(i + 1) % outline.length],
-      dx = ex - x,
-      dz = ez - z;
-    return { x, z, dx, dz, ez, inv: 1 / (dx * dx + dz * dz || 1) };
+    const [endX, endZ] = outline[(i + 1) % outline.length],
+      dx = endX - x,
+      dz = endZ - z;
+    return { x, z, dx, dz, ez: endZ, inv: 1 / (dx * dx + dz * dz || 1) };
   });
 /**
  * Measure distance to the closest point on a polygon edge. The sign is positive
@@ -26,12 +26,12 @@ export const outlineEdges = outline =>
 export function outlineDistance(edges, x, z) {
   let inside = false,
     best = Infinity;
-  for (const e of edges) {
-    const px = x - e.x,
-      pz = z - e.z;
-    if (e.z > z !== e.ez > z && px < (pz * e.dx) / e.dz) inside = !inside;
-    const t = clamp((px * e.dx + pz * e.dz) * e.inv, 0, 1);
-    best = Math.min(best, (px - e.dx * t) ** 2 + (pz - e.dz * t) ** 2);
+  for (const edge of edges) {
+    const px = x - edge.x,
+      pz = z - edge.z;
+    if (edge.z > z !== edge.ez > z && px < (pz * edge.dx) / edge.dz) inside = !inside;
+    const edgeFraction = clamp((px * edge.dx + pz * edge.dz) * edge.inv, 0, 1);
+    best = Math.min(best, (px - edge.dx * edgeFraction) ** 2 + (pz - edge.dz * edgeFraction) ** 2);
   }
   return Math.sqrt(best) * (inside ? 1 : -1);
 }
@@ -53,8 +53,8 @@ export function outlineDistance(edges, x, z) {
  * ```
  */
 export function createShoreGrid() {
-  let grid = null, // the distances, n to a side
-    n = 0,
+  let grid = null, // the distance samples, with pointsPerSide along each edge
+    pointsPerSide = 0,
     x0 = 0,
     z0 = 0,
     step = 0; // metres from one point of the grid to the next
@@ -70,8 +70,8 @@ export function createShoreGrid() {
     x0 = cornerX;
     z0 = cornerZ;
     step = spacing;
-    n = points;
-    grid = new Float32Array(n * n);
+    pointsPerSide = points;
+    grid = new Float32Array(pointsPerSide * pointsPerSide);
   }
   /**
    * Restore a matching cached grid by writing into this buffer after layout.
@@ -81,13 +81,13 @@ export function createShoreGrid() {
   /** @param {[number, number][][]} outlines - Land polygons to rasterize into the allocated grid. */
   function bakeShore(outlines) {
     const edges = outlines.map(outlineEdges);
-    for (let j = 0; j < n; j++)
-      for (let i = 0; i < n; i++) {
+    for (let row = 0; row < pointsPerSide; row++)
+      for (let i = 0; i < pointsPerSide; i++) {
         const x = x0 + i * step,
-          z = z0 + j * step;
-        let d = -Infinity;
-        for (const outline of edges) d = Math.max(d, outlineDistance(outline, x, z));
-        grid[j * n + i] = d;
+          z = z0 + row * step;
+        let landDistance = -Infinity;
+        for (const outline of edges) landDistance = Math.max(landDistance, outlineDistance(outline, x, z));
+        grid[row * pointsPerSide + i] = landDistance;
       }
   }
   /**
@@ -96,14 +96,14 @@ export function createShoreGrid() {
    * @returns {number} Interpolated signed distance in metres, positive inland.
    */
   function shoreDistance(x, z) {
-    const u = clamp((x - x0) / step, 0, n - 1.001),
-      v = clamp((z - z0) / step, 0, n - 1.001),
-      i = Math.floor(u),
-      j = Math.floor(v),
-      a = u - i,
-      b = v - j,
-      k = j * n + i;
-    return lerp(lerp(grid[k], grid[k + 1], a), lerp(grid[k + n], grid[k + n + 1], a), b);
+    const u = clamp((x - x0) / step, 0, pointsPerSide - 1.001),
+      v = clamp((z - z0) / step, 0, pointsPerSide - 1.001),
+      column = Math.floor(u),
+      row = Math.floor(v),
+      columnFraction = u - column,
+      rowFraction = v - row,
+      gridIndex = row * pointsPerSide + column;
+    return lerp(lerp(grid[gridIndex], grid[gridIndex + 1], columnFraction), lerp(grid[gridIndex + pointsPerSide], grid[gridIndex + pointsPerSide + 1], columnFraction), rowFraction);
   }
 
   return { bakeShore, layOutShore, shoreDistance, shoreGrid };

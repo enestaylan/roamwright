@@ -57,7 +57,7 @@ const AO_FS = `/* glsl */ uniform sampler2D tDepth; uniform vec2 uNF, uTan, uPx;
 // Additive blending can overflow the half-float buffer; one infinite or invalid pixel would be smeared by bloom into a black square,
 // so both the bloom's input and the final pass make every pixel finite and cap it.
 const SANE =
-  'vec3 sane(vec3 c){ if (!(c.r >= 0.0)) c.r = 0.0; if (!(c.g >= 0.0)) c.g = 0.0; if (!(c.b >= 0.0)) c.b = 0.0; return min(c, vec3(48.0)); }';
+  'vec3 sane(vec3 sampleColor){ if (!(sampleColor.r >= 0.0)) sampleColor.r = 0.0; if (!(sampleColor.g >= 0.0)) sampleColor.g = 0.0; if (!(sampleColor.b >= 0.0)) sampleColor.b = 0.0; return min(sampleColor, vec3(48.0)); }';
 
 // Bloom: what is brighter than BLOOM.threshold is blurred at five sizes, from half the frame down to a thirty-second, each level blurred
 // across and then down with a wider Gaussian (the same blur and weights as Three's UnrealBloomPass), and the final pass adds the five.
@@ -79,12 +79,12 @@ const BLUR_FS = `/* glsl */ uniform sampler2D tSrc; uniform vec2 uStep; uniform 
 // The grade after tone mapping: saturation, a touch of contrast, cool shadows and warm lights, the vignette. Shared by the final
 // pass and the names drawn after it, so both are graded alike.
 const GRADE = `/* glsl */ uniform float uVig, uSat;
-  vec3 gradeTail(vec3 c, vec2 uv){
-    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    c = mix(vec3(l), c, uSat);
-    c = mix(c, c * c * (3.0 - 2.0 * c), 0.16);
-    c *= mix(vec3(0.95, 0.985, 1.06), vec3(1.045, 1.0, 0.95), smoothstep(0.0, 0.75, l));
-    vec2 q = uv - 0.5; return c * (1.0 - uVig * smoothstep(0.22, 1.0, dot(q, q) * 2.3)); }`;
+  vec3 gradeTail(vec3 sceneColor, vec2 uv){
+    float l = dot(sceneColor, vec3(0.2126, 0.7152, 0.0722));
+    sceneColor = mix(vec3(l), sceneColor, uSat);
+    sceneColor = mix(sceneColor, sceneColor * sceneColor * (3.0 - 2.0 * sceneColor), 0.16);
+    sceneColor *= mix(vec3(0.95, 0.985, 1.06), vec3(1.045, 1.0, 0.95), smoothstep(0.0, 0.75, l));
+    vec2 q = uv - 0.5; return sceneColor * (1.0 - uVig * smoothstep(0.22, 1.0, dot(q, q) * 2.3)); }`;
 // A pixel's own noise of half a step of the 8-bit screen, against banding.
 const DITHER = '(fract(sin(dot(gl_FragCoord.xy + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0';
 
@@ -94,7 +94,11 @@ const DOF_COC = `/* glsl */ float cocAt(float z){ return min(uDof.y * abs(z - uD
 const DOF_MIX = `/* glsl */
     if (uDof.w > 0.0) { soft = texture2D(tDof, vUv).rgb; softShare = smoothstep(0.8, 2.5, cocAt(viewDepth(vUv))) * uDof.w; }`;
 // ACES fitted curve by Stephen Hill, from Baking Lab (licenses/baking-lab.txt), as used in Three.js (licenses/three.txt).
-const ACES = `/* glsl */ vec3 fit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
+const ACES = `/* glsl */ vec3 fit(vec3 exposedColor){
+  vec3 numerator = exposedColor * (exposedColor + 0.0245786) - 0.000090537;
+  vec3 denominator = exposedColor * (0.983729 * exposedColor + 0.4329510) + 0.238081;
+  return numerator / denominator;
+}
   vec3 acesCurve(vec3 c){
     const mat3 mi = mat3(vec3(0.59719, 0.07600, 0.02840), vec3(0.35458, 0.90834, 0.13383), vec3(0.04823, 0.01566, 0.83777));
     const mat3 mo = mat3(vec3(1.60475, -0.10208, -0.00327), vec3(-0.53108, 1.10813, -0.07276), vec3(-0.07367, -0.00605, 1.07602));
@@ -173,11 +177,11 @@ ${STEADY}
 // Edge adaptation and sharpening follow AMD FidelityFX Super Resolution 1 (licenses/fidelityfx-fsr.txt).
 // A sharpening held within its neighbours (as FSR 1's RCAS): e is pushed away from the four round it (b above, d left, f right, h below)
 // by up to sharp (0 to 1), only as far as keeps it inside their range, so edges come back crisp without halos.
-const SHARPEN = `/* glsl */ vec3 sharpen(vec3 b, vec3 d, vec3 e, vec3 f, vec3 h, float sharp){
-    vec3 mn = min(min(b, d), min(f, h)), mx = max(max(b, d), max(f, h));
-    vec3 lobes = max(-min(mn, e) / (4.0 * mx + 1e-5), (1.0 - max(mx, e)) / (4.0 * mn - 4.0 - 1e-5));
+const SHARPEN = `/* glsl */ vec3 sharpen(vec3 upperColor, vec3 leftColor, vec3 centerColor, vec3 rightColor, vec3 lowerColor, float sharp){
+    vec3 neighbourMin = min(min(upperColor, leftColor), min(rightColor, lowerColor)), neighbourMax = max(max(upperColor, leftColor), max(rightColor, lowerColor));
+    vec3 lobes = max(-min(neighbourMin, centerColor) / (4.0 * neighbourMax + 1e-5), (1.0 - max(neighbourMax, centerColor)) / (4.0 * neighbourMin - 4.0 - 1e-5));
     float lobe = max(-0.1875, min(max(lobes.r, max(lobes.g, lobes.b)), 0.0)) * sharp;
-    return (lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0); }`;
+    return (lobe * (upperColor + leftColor + rightColor + lowerColor) + centerColor) / (4.0 * lobe + 1.0); }`;
 // The present pass, with temporal anti-aliasing: the running picture sharpened a little (a running picture is a little softer than one
 // frame; where the upscale follows, its own sharpening does this), tone-mapped, graded and encoded for the screen, with its noise and
 // the depth.
@@ -200,7 +204,7 @@ const PRESENT_FS = `/* glsl */ uniform sampler2D tSrc, tDepth; uniform vec2 uPx;
 // Works on the graded picture, where steps of light are as the eye sees them.
 const EASU_FS = `/* glsl */ uniform sampler2D tSrc; uniform vec2 uSrcSize; varying vec2 vUv;
   vec3 tap(vec2 p){ return texture2D(tSrc, (p + 0.5) / uSrcSize).rgb; }
-  float luma(vec3 c){ return c.g + 0.5 * (c.r + c.b); }
+  float luma(vec3 color){ return color.g + 0.5 * (color.r + color.b); }
   // the edge at one of the four central texels, from its four neighbours, weighted by the sample's nearness to it: its direction, and how
   // much it is an edge (a step on one side only) rather than a thin line or noise (steps both ways)
   void edge(inout vec2 dir, inout float len, float w, float up, float left, float mid, float right, float down){

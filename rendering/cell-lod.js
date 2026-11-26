@@ -31,9 +31,9 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
     distanceMaterial = null;
 
   // Hides, in the vertex shader, a copy whose cell is not showing its far copy or that lies past the cell's `count`.
-  function hideUnshown(sh) {
-    sh.uniforms.uFarShown = shown;
-    sh.vertexShader = sh.vertexShader
+  function hideUnshown(shader) {
+    shader.uniforms.uFarShown = shown;
+    shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 aFar; uniform sampler2D uFarShown;')
       .replace(/void\s+main\s*\(\s*(?:void)?\s*\)\s*\{/, match => `${match}
         if (aFar.y >= texelFetch(uFarShown, ivec2(int(aFar.x) % ${tableWidth}, int(aFar.x) / ${tableWidth}), 0).r) {
@@ -44,16 +44,16 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
   // A far copy's material: the cell's own, cloned once per material, with its own patch kept and the hiding added.
   function farMaterial(base, cache) {
     if (cache.has(base)) return cache.get(base);
-    const m = base.clone(),
+    const material = base.clone(),
       inner = base.onBeforeCompile,
       key = base.customProgramCacheKey();
-    m.onBeforeCompile = (sh, r) => {
-      inner.call(base, sh, r);
-      hideUnshown(sh);
+    material.onBeforeCompile = (shader, r) => {
+      inner.call(base, shader, r);
+      hideUnshown(shader);
     };
-    m.customProgramCacheKey = () => key + ':far-batch';
-    cache.set(base, m);
-    return m;
+    material.customProgramCacheKey = () => key + ':far-batch';
+    cache.set(base, material);
+    return material;
   }
   // The shadow body of far copies that cast: the far shape itself, hidden as in the picture, so a cell casts what it shows.
   function depthMaterial() {
@@ -68,7 +68,7 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
 
   /** Batches the far copies of `cells` (taken out of their parents) into `parent`; returns the batches. */
   function batch(cellList, parent) {
-    const cells = cellList.filter(t => t.lo && t.lo.isInstancedMesh),
+    const cells = cellList.filter(cell => cell.lo && cell.lo.isInstancedMesh),
       groups = new Map(),
       materials = new Map();
     table.data = new Float32Array(tableWidth * Math.ceil(cells.length / tableWidth));
@@ -77,53 +77,53 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
       table.tex.needsUpdate = true;
       shown.value = table.tex;
     }
-    cells.forEach((t, slot) => {
-      const lo = t.lo,
+    cells.forEach((cell, slot) => {
+      const lo = cell.lo,
         key = [
           lo.geometry.uuid,
           lo.material.uuid,
           lo.layers.mask,
           lo.receiveShadow,
-          t.mesh.castShadow,
-          Math.floor(t.cx / square),
-          Math.floor(t.cz / square),
+          cell.mesh.castShadow,
+          Math.floor(cell.cx / square),
+          Math.floor(cell.cz / square),
         ].join('|');
-      let g = groups.get(key);
-      if (!g) groups.set(key, (g = { lo, casts: t.mesh.castShadow, cells: [] }));
-      g.cells.push(t);
-      t.far = slot;
-      t.farN = lo.instanceMatrix.count;
-      t.lo = null;
+      let group = groups.get(key);
+      if (!group) groups.set(key, (group = { lo, casts: cell.mesh.castShadow, cells: [] }));
+      group.cells.push(cell);
+      cell.far = slot;
+      cell.farN = lo.instanceMatrix.count;
+      cell.lo = null;
       lo.removeFromParent();
     });
     for (const { lo, casts, cells: list } of groups.values()) {
-      const n = list.reduce((s, t) => s + t.farN, 0),
-        geo = new THREE.BufferGeometry();
-      for (const name in lo.geometry.attributes) geo.setAttribute(name, lo.geometry.attributes[name]);
-      geo.setIndex(lo.geometry.index);
-      geo.boundingSphere = lo.geometry.boundingSphere;
-      geo.boundingBox = lo.geometry.boundingBox;
-      const ids = compact ? null : new Float32Array(n * 2),
-        mesh = new THREE.InstancedMesh(geo, compact ? lo.material : farMaterial(lo.material, materials), n);
-      if (lo.instanceColor) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+      const instanceCount = list.reduce((total, cell) => total + cell.farN, 0),
+        geometry = new THREE.BufferGeometry();
+      for (const name in lo.geometry.attributes) geometry.setAttribute(name, lo.geometry.attributes[name]);
+      geometry.setIndex(lo.geometry.index);
+      geometry.boundingSphere = lo.geometry.boundingSphere;
+      geometry.boundingBox = lo.geometry.boundingBox;
+      const ids = compact ? null : new Float32Array(instanceCount * 2),
+        mesh = new THREE.InstancedMesh(geometry, compact ? lo.material : farMaterial(lo.material, materials), instanceCount);
+      if (lo.instanceColor) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(instanceCount * 3), 3);
       let at = 0;
-      for (const t of list) {
-        t.farBatch = batches.length;
-        t.farStart = at;
-        if (t.lod) t.lod.batch = t.farBatch;
-        const src = t.mesh.instanceMatrix.array,
-          col = t.mesh.instanceColor?.array;
-        mesh.instanceMatrix.array.set(src.subarray(0, t.farN * 16), at * 16);
-        if (col && mesh.instanceColor) mesh.instanceColor.array.set(col.subarray(0, t.farN * 3), at * 3);
+      for (const cell of list) {
+        cell.farBatch = batches.length;
+        cell.farStart = at;
+        if (cell.lod) cell.lod.batch = cell.farBatch;
+        const src = cell.mesh.instanceMatrix.array,
+          col = cell.mesh.instanceColor?.array;
+        mesh.instanceMatrix.array.set(src.subarray(0, cell.farN * 16), at * 16);
+        if (col && mesh.instanceColor) mesh.instanceColor.array.set(col.subarray(0, cell.farN * 3), at * 3);
         if (ids) {
-          for (let i = 0; i < t.farN; i++) {
-            ids[(at + i) * 2] = t.far;
+          for (let i = 0; i < cell.farN; i++) {
+            ids[(at + i) * 2] = cell.far;
             ids[(at + i) * 2 + 1] = i;
           }
         }
-        at += t.farN;
+        at += cell.farN;
       }
-      if (ids) geo.setAttribute('aFar', new THREE.InstancedBufferAttribute(ids, 2));
+      if (ids) geometry.setAttribute('aFar', new THREE.InstancedBufferAttribute(ids, 2));
       if (compact) {
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.instanceColor?.setUsage(THREE.DynamicDrawUsage);
@@ -160,15 +160,15 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
     const mesh = batches[batchIndex];
     let end = 0;
     for (const cell of members[batchIndex]) {
-      const n = Math.min(table.data[cell.far], cell.farN);
-      if (!n) continue;
-      mesh.instanceMatrix.array.set(cell.mesh.instanceMatrix.array.subarray(0, n * 16), end * 16);
+      const visibleCount = Math.min(table.data[cell.far], cell.farN);
+      if (!visibleCount) continue;
+      mesh.instanceMatrix.array.set(cell.mesh.instanceMatrix.array.subarray(0, visibleCount * 16), end * 16);
       if (mesh.instanceColor) {
         const colour = cell.mesh.instanceColor;
-        if (colour) mesh.instanceColor.array.set(colour.array.subarray(0, n * 3), end * 3);
-        else mesh.instanceColor.array.fill(0, end * 3, (end + n) * 3);
+        if (colour) mesh.instanceColor.array.set(colour.array.subarray(0, visibleCount * 3), end * 3);
+        else mesh.instanceColor.array.fill(0, end * 3, (end + visibleCount) * 3);
       }
-      end += n;
+      end += visibleCount;
     }
     mesh.count = end;
     if (!end) return;
@@ -182,8 +182,8 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
 
   // Where a cell lies and how far it is drawn, kept on it in a record of one shape: cells come from builders of many shapes,
   // and a number read from objects of so many shapes is made anew at every read. A cell does not move.
-  const lodOf = t =>
-    (t.lod ??= { cx: t.cx, cy: t.cy ?? 0, cz: t.cz, r: t.r, until: t.until ?? Infinity, near: t.near ?? Infinity, batch: t.farBatch ?? -1 });
+  const lodOf = cell =>
+    (cell.lod ??= { cx: cell.cx, cy: cell.cy ?? 0, cz: cell.cz, r: cell.r, until: cell.until ?? Infinity, near: cell.near ?? Infinity, batch: cell.farBatch ?? -1 });
 
   /**
    * Each frame: near cells show their detailed mesh, far ones their batched copy, thinned beyond `thinFrom` of the drawing
@@ -195,31 +195,31 @@ export function createCellLod({ square = 500, compact = false, tableWidth = 64, 
     let changed = false;
     if (drawEnds) drawEnds.fill(0);
     for (let i = 0; i < cells.length; i++) {
-      const t = cells[i],
-        at = lodOf(t),
+      const cell = cells[i],
+        at = lodOf(cell),
         dx = cx - at.cx,
         dz = cz - at.cz,
         horizontalSq = dx * dx + dz * dz,
-        d = Math.sqrt(horizontalSq) / rangeScale - at.r,
-        hasFar = t.lo || t.far !== undefined;
-      const vis = d < Math.min(distance, at.until),
-        nearDistance = cy === undefined ? d : Math.sqrt(horizontalSq + (cy - at.cy) ** 2) / rangeScale - at.r,
+        detailDistance = Math.sqrt(horizontalSq) / rangeScale - at.r,
+        hasFar = cell.lo || cell.far !== undefined;
+      const vis = detailDistance < Math.min(distance, at.until),
+        nearDistance = cy === undefined ? detailDistance : Math.sqrt(horizontalSq + (cy - at.cy) ** 2) / rangeScale - at.r,
         hi = !hasFar || nearDistance < Math.min(detail, at.near);
-      t.mesh.visible = vis && hi;
-      if (t.lo) t.lo.visible = vis && !hi;
-      let count = t.farN;
-      if (t.full !== undefined) {
-        count = Math.max(1, (t.full * (d < distance * thinFrom ? 1 : thinTo) * density) | 0);
-        t.mesh.count = count;
-        if (t.lo) t.lo.count = count;
+      cell.mesh.visible = vis && hi;
+      if (cell.lo) cell.lo.visible = vis && !hi;
+      let count = cell.farN;
+      if (cell.full !== undefined) {
+        count = Math.max(1, (cell.full * (detailDistance < distance * thinFrom ? 1 : thinTo) * density) | 0);
+        cell.mesh.count = count;
+        if (cell.lo) cell.lo.count = count;
       }
-      if (t.far !== undefined) {
+      if (cell.far !== undefined) {
         const v = vis && !hi ? count : 0;
         // A single draw preserves gl_InstanceID and the order of overlapping instances.
         // Omit its invisible tail; the shader clips gaps before doing any vertex work.
-        if (v > 0) drawEnds[at.batch] = Math.max(drawEnds[at.batch], t.farStart + Math.min(t.farN, v));
-        if (table.data[t.far] !== v) {
-          table.data[t.far] = v;
+        if (v > 0) drawEnds[at.batch] = Math.max(drawEnds[at.batch], cell.farStart + Math.min(cell.farN, v));
+        if (table.data[cell.far] !== v) {
+          table.data[cell.far] = v;
           if (compact) dirty[at.batch] = 1;
           changed = true;
         }

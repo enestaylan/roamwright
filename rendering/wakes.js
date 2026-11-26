@@ -8,41 +8,41 @@ export function createWakes({ slots = 6, minSpeed = 0.25, reach = 450, ease = 4 
   };
   const hulls = []; // { obj, length, beam, x, z, vx, vz, known, d2 }
 
-  // Follows the hull carried by obj (her middle at its origin), `length` and `beam` metres, for as long as the page lives.
-  function followWake(obj, length, beam = length * 0.3) {
-    const hull = { obj, length, beam, x: 0, z: 0, vx: 0, vz: 0, known: false, d2: Infinity };
+  // Follows the hull carried by the object (her middle at its origin), `length` and `beam` metres, for as long as the page lives.
+  function followWake(object, length, beam = length * 0.3) {
+    const hull = { obj: object, length, beam, x: 0, z: 0, vx: 0, vz: 0, known: false, d2: Infinity };
     hulls.push(hull);
     return () => {
       const i = hulls.indexOf(hull);
       if (i >= 0) hulls.splice(i, 1);
     };
   }
-  // Whether obj is in the scene and nothing holding it is hidden.
-  function shown(obj) {
-    let o = obj;
-    for (; o.parent; o = o.parent) if (!o.visible) return false;
-    return o.isScene === true;
+  // Whether the object is in the scene and nothing holding it is hidden.
+  function shown(object) {
+    let ancestor = object;
+    for (; ancestor.parent; ancestor = ancestor.parent) if (!ancestor.visible) return false;
+    return ancestor.isScene === true;
   }
   // Each frame: how fast each hull is moving, measured from where her frame was last drawn; the nearest under way fill the slots.
-  function updateWakes(dt, eye) {
+  function updateWakes(deltaSeconds, eye) {
     for (let i = 0; i < hulls.length; i++) {
-      const h = hulls[i],
-        e = h.obj.matrixWorld.elements;
-      h.d2 = Infinity;
-      if (!shown(h.obj)) {
-        h.known = false;
+      const hull = hulls[i],
+        worldElements = hull.obj.matrixWorld.elements;
+      hull.d2 = Infinity;
+      if (!shown(hull.obj)) {
+        hull.known = false;
         continue;
       }
-      if (h.known && dt > 0) {
-        const k = Math.min(1, dt * ease);
-        h.vx += ((e[12] - h.x) / dt - h.vx) * k;
-        h.vz += ((e[14] - h.z) / dt - h.vz) * k;
-      } else h.vx = h.vz = 0;
-      h.x = e[12];
-      h.z = e[14];
-      h.known = true;
-      const d2 = (h.x - eye.x) ** 2 + (h.z - eye.z) ** 2;
-      if (d2 < reach * reach && h.vx * h.vx + h.vz * h.vz > minSpeed * minSpeed) h.d2 = d2;
+      if (hull.known && deltaSeconds > 0) {
+        const speedBlend = Math.min(1, deltaSeconds * ease);
+        hull.vx += ((worldElements[12] - hull.x) / deltaSeconds - hull.vx) * speedBlend;
+        hull.vz += ((worldElements[14] - hull.z) / deltaSeconds - hull.vz) * speedBlend;
+      } else hull.vx = hull.vz = 0;
+      hull.x = worldElements[12];
+      hull.z = worldElements[14];
+      hull.known = true;
+      const d2 = (hull.x - eye.x) ** 2 + (hull.z - eye.z) ** 2;
+      if (d2 < reach * reach && hull.vx * hull.vx + hull.vz * hull.vz > minSpeed * minSpeed) hull.d2 = d2;
     }
     const at = wakeUniforms.uWake.value,
       size = wakeUniforms.uWakeS.value;

@@ -39,15 +39,15 @@ function linenCase(cloth, x, y, z, width, height, length, tone, yaw = 0, profile
     const row = [],
       shades = [];
     for (let i = 0; i < 32; i++) {
-      const a = (i * TAU) / 32,
-        ca = Math.cos(a),
-        sa = Math.sin(a);
+      const angle = (i * TAU) / 32,
+        cosAngle = Math.cos(angle),
+        sinAngle = Math.sin(angle);
       // Rounded corners with a little more filling at the four ears of a pillowcase.
       const power = pillow ? 4 : 10;
-      const r = radius / Math.pow(Math.abs(ca) ** power + Math.abs(sa) ** power, 1 / power);
-      const u = (ca * r * width) / 2,
-        v = (sa * r * length) / 2;
-      const tuck = pillow ? Math.sin(2 * a + 0.15) ** 2 * radius ** 3 : 0;
+      const r = radius / Math.pow(Math.abs(cosAngle) ** power + Math.abs(sinAngle) ** power, 1 / power);
+      const u = (cosAngle * r * width) / 2,
+        v = (sinAngle * r * length) / 2;
+      const tuck = pillow ? Math.sin(2 * angle + 0.15) ** 2 * radius ** 3 : 0;
       row.push([x + cos * u + sin * v, y + height * (level + 0.12 * tuck), z - sin * u + cos * v]);
       shades.push(dim(tone, pillow && level === 0.43 ? 0.65 : 1 - 0.07 * tuck));
     }

@@ -29,13 +29,13 @@ function polyGrid(poly, cell, pad) {
 // The signed distance anywhere, read from a grid of polyGrid's; beyond the box, the distance to the box.
 function gridField({ x0, z0, x1, z1, nx, nz, cell, pad, g }) {
   return (x, z) => {
-    const fx = (x - x0) / cell,
-      fz = (z - z0) / cell;
-    if (fx < 0 || fz < 0 || fx > nx - 1 || fz > nz - 1) return pad + Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1));
-    const i = Math.min(nx - 2, fx | 0),
-      j = Math.min(nz - 2, fz | 0),
-      u = fx - i,
-      v = fz - j,
+    const gridX = (x - x0) / cell,
+      gridZ = (z - z0) / cell;
+    if (gridX < 0 || gridZ < 0 || gridX > nx - 1 || gridZ > nz - 1) return pad + Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1));
+    const i = Math.min(nx - 2, gridX | 0),
+      j = Math.min(nz - 2, gridZ | 0),
+      u = gridX - i,
+      v = gridZ - j,
       k = j * nx + i;
     return (g[k] * (1 - u) + g[k + 1] * u) * (1 - v) + (g[k + nx] * (1 - u) + g[k + nx + 1] * u) * v;
   };

@@ -21,13 +21,13 @@ export function createDailyClock({ getFrame, getHour, jumpHours = 0.05 }) {
   // A span of the day from one ramp to another, as the hours of the one that comes first and goes first (rank 0) and of the last
   // (rank 1); one that runs over midnight is counted on into the next day.
   function spanOf(from, to, h, rank) {
-    const a = from[0] + rank * (from[1] - from[0]);
-    let b = to[0] + rank * (to[1] - to[0]);
-    if (b < a) {
-      b += 24;
-      if (h < a) h += 24;
+    const startHour = from[0] + rank * (from[1] - from[0]);
+    let endHour = to[0] + rank * (to[1] - to[0]);
+    if (endHour < startHour) {
+      endHour += 24;
+      if (h < startHour) h += 24;
     }
-    return h >= a && h < b;
+    return h >= startHour && h < endHour;
   }
   // Whether one of rank `rank` is out now in a span [from, to] of ramps, and will still be out `ahead` hours from now (one that
   // needs that long to get in goes in so much sooner).
@@ -51,9 +51,9 @@ export function createDailyClock({ getFrame, getHour, jumpHours = 0.05 }) {
   }
 
   // The hours between two hours of the day, the short way round.
-  const hoursApart = (a, b) => {
-    const d = Math.abs(a - b) % 24;
-    return d > 12 ? 24 - d : d;
+  const hoursApart = (firstHour, secondHour) => {
+    const separation = Math.abs(firstHour - secondHour) % 24;
+    return separation > 12 ? 24 - separation : separation;
   };
   return { hourNow, clockTurned, isOut, shareOut, hoursApart };
 }

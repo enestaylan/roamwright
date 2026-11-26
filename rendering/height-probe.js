@@ -48,7 +48,7 @@ export function createHeightProbe(renderer, scene, { layer, size, above, below, 
     const previous = view.layers.mask;
     view.layers.enableAll();
     try {
-      const geometry = warmStandIns(root, o => solidMesh(o) && depth(), view, undefined, scene.fog, true);
+      const geometry = warmStandIns(root, object => solidMesh(object) && depth(), view, undefined, scene.fog, true);
       return useQueries ? Promise.all([geometry, depthResult().warm()]) : geometry;
     } finally {
       view.layers.mask = previous;

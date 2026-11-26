@@ -10,29 +10,29 @@ function packHairPatch(points, triangles, emitVertex) {
   const bands = new Map(), corners = [];
   let vertexCount = 0;
   for (let t = 0; t < triangles.length; t += 3) {
-    const a = triangles[t] * POINT,
-      b = triangles[t + 1] * POINT,
-      c = triangles[t + 2] * POINT,
-      band = Math.floor((points[a + 9] + points[b + 9] + points[c + 9]) / 3 / BAND),
-      ux = points[b] - points[a],
-      uy = points[b + 1] - points[a + 1],
-      uz = points[b + 2] - points[a + 2],
-      vx = points[c] - points[a],
-      vy = points[c + 1] - points[a + 1],
-      vz = points[c + 2] - points[a + 2],
+    const firstOffset = triangles[t] * POINT,
+      secondOffset = triangles[t + 1] * POINT,
+      thirdOffset = triangles[t + 2] * POINT,
+      band = Math.floor((points[firstOffset + 9] + points[secondOffset + 9] + points[thirdOffset + 9]) / 3 / BAND),
+      ux = points[secondOffset] - points[firstOffset],
+      uy = points[secondOffset + 1] - points[firstOffset + 1],
+      uz = points[secondOffset + 2] - points[firstOffset + 2],
+      vx = points[thirdOffset] - points[firstOffset],
+      vy = points[thirdOffset + 1] - points[firstOffset + 1],
+      vz = points[thirdOffset + 2] - points[firstOffset + 2],
       faces =
-        (uy * vz - uz * vy) * (points[a + 3] + points[b + 3] + points[c + 3]) +
-        (uz * vx - ux * vz) * (points[a + 4] + points[b + 4] + points[c + 4]) +
-        (ux * vy - uy * vx) * (points[a + 5] + points[b + 5] + points[c + 5]);
+        (uy * vz - uz * vy) * (points[firstOffset + 3] + points[secondOffset + 3] + points[thirdOffset + 3]) +
+        (uz * vx - ux * vz) * (points[firstOffset + 4] + points[secondOffset + 4] + points[thirdOffset + 4]) +
+        (ux * vy - uy * vx) * (points[firstOffset + 5] + points[secondOffset + 5] + points[thirdOffset + 5]);
     let put = bands.get(band);
     if (!put) { put = new Map(); bands.set(band, put); }
-    for (const p of faces < 0 ? [a, c, b] : [a, b, c]) {
-      let v = put.get(p);
+    for (const pointOffset of faces < 0 ? [firstOffset, thirdOffset, secondOffset] : [firstOffset, secondOffset, thirdOffset]) {
+      let v = put.get(pointOffset);
       if (v === undefined) {
         v = vertexCount++;
-        put.set(p, v);
-        const tag = HAIR_NEAR + Math.min(MOST, Math.max(0, points[p + 9] - band * BAND + MARGIN));
-        emitVertex(p, tag);
+        put.set(pointOffset, v);
+        const tag = HAIR_NEAR + Math.min(MOST, Math.max(0, points[pointOffset + 9] - band * BAND + MARGIN));
+        emitVertex(pointOffset, tag);
       }
       corners.push(v);
     }

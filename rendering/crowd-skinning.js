@@ -57,10 +57,10 @@ export function applyCrowdSkinning(shader, { poseUniform, walk = null, depth = f
   }
 }
 
-export function createCrowdBatch(scene, geo, max, mat, [depth, distance], name, casts = true) {
-  const mesh = new THREE.InstancedMesh(geo, mat, max);
+export function createCrowdBatch(scene, geometry, max, material, [depth, distance], name, casts = true) {
+  const mesh = new THREE.InstancedMesh(geometry, material, max);
   const rows = new THREE.InstancedBufferAttribute(new Float32Array(max * 2), 2).setUsage(THREE.DynamicDrawUsage);
-  geo.setAttribute('aCrowdRows', rows);
+  geometry.setAttribute('aCrowdRows', rows);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.name = name;
   mesh.frustumCulled = false;
@@ -73,10 +73,10 @@ export function createCrowdBatch(scene, geo, max, mat, [depth, distance], name, 
   return { mesh, rows, count: 0, shadow: null };
 }
 
-export function castCrowdShadow(scene, near, geo, [depth, distance]) {
-  const mesh = new THREE.InstancedMesh(geo, near.mesh.material, 0);
+export function castCrowdShadow(scene, near, geometry, [depth, distance]) {
+  const mesh = new THREE.InstancedMesh(geometry, near.mesh.material, 0);
   let held = 0;
-  geo.setAttribute('aCrowdRows', near.rows);
+  geometry.setAttribute('aCrowdRows', near.rows);
   mesh.instanceMatrix = near.mesh.instanceMatrix;
   mesh.name = near.mesh.name + ' shadow';
   mesh.frustumCulled = false;
@@ -100,8 +100,8 @@ export function bakeCrowdFrame(walk, bones) {
     vertices = walk.vertices;
   let k = walk.k;
   for (let i = 0; i < position.count; i++) {
-    const a = aJoints.getX(i) * 12,
-      b = aJoints.getY(i) * 12,
+    const firstJointOffset = aJoints.getX(i) * 12,
+      secondJointOffset = aJoints.getY(i) * 12,
       w = aWeight.getX(i);
     const x = position.getX(i),
       y = position.getY(i),
@@ -109,11 +109,11 @@ export function bakeCrowdFrame(walk, bones) {
     const nx = normal.getX(i),
       ny = normal.getY(i),
       nz = normal.getZ(i);
-    const m = j => lerp(bones[b + j], bones[a + j], w);
-    const after = (v, u, q, j) => m(j) * v + m(j + 1) * u + m(j + 2) * q;
-    vertices[k++] = after(x, y, z, 0) + m(3);
-    vertices[k++] = after(x, y, z, 4) + m(7);
-    vertices[k++] = after(x, y, z, 8) + m(11);
+    const boneComponent = j => lerp(bones[secondJointOffset + j], bones[firstJointOffset + j], w);
+    const after = (v, u, q, j) => boneComponent(j) * v + boneComponent(j + 1) * u + boneComponent(j + 2) * q;
+    vertices[k++] = after(x, y, z, 0) + boneComponent(3);
+    vertices[k++] = after(x, y, z, 4) + boneComponent(7);
+    vertices[k++] = after(x, y, z, 8) + boneComponent(11);
     let vx = after(nx, ny, nz, 0),
       vy = after(nx, ny, nz, 4);
     const vz = after(nx, ny, nz, 8),

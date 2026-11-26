@@ -43,9 +43,9 @@ class Runs {
     while (i < this.gaps.length && this.gaps[i][0] < start) i++;
     this.gaps.splice(i, 0, [start, count]);
     for (const at of [i, i - 1]) {
-      const a = this.gaps[at],
-        b = this.gaps[at + 1];
-      if (a && b && a[0] + a[1] === b[0]) this.gaps.splice(at, 2, [a[0], a[1] + b[1]]);
+      const firstGap = this.gaps[at],
+        nextGap = this.gaps[at + 1];
+      if (firstGap && nextGap && firstGap[0] + firstGap[1] === nextGap[0]) this.gaps.splice(at, 2, [firstGap[0], firstGap[1] + nextGap[1]]);
     }
   }
 }
@@ -116,7 +116,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
         index = geometry.index,
         gl = renderer.getContext();
       if (!this.layout) {
-        this.layout = Object.entries(geometry.attributes).map(([name, a]) => [name, a.array.constructor, a.itemSize, a.normalized]);
+        this.layout = Object.entries(geometry.attributes).map(([name, attribute]) => [name, attribute.array.constructor, attribute.itemSize, attribute.normalized]);
         if (index) this.indices = new Uint32Array(0);
       }
       const { vertexStart, start } = this.claim(vertexCount, count);
@@ -393,8 +393,8 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
       let seen = 0;
       for (const piece of pieces) {
         if (!piece || (mesh === this && piece.view) || !piece.shown || !_view.intersectsSphere(piece.sphere)) continue;
-        const c = piece.sphere.center;
-        piece.depth = e[2] * c.x + e[6] * c.y + e[10] * c.z + e[14];
+        const centre = piece.sphere.center;
+        piece.depth = e[2] * centre.x + e[6] * centre.y + e[10] * centre.z + e[14];
         _seen[seen++] = piece;
       }
       if (seen > 1) {

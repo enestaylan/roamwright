@@ -18,12 +18,12 @@ export function createRockTexture(seed = 0, { fractures = 'cells' } = {}) {
   const { tfbm } = createNoise(seed);
   const jointed = fractures === 'joints';
   if (!jointed && fractures !== 'cells') throw new TypeError('Unknown rock fracture pattern: ' + fractures);
-  return (u, v, o) => {
-    const n = tfbm(u, v, 6, 6, 81),
+  return (u, v, output) => {
+    const grainNoise = tfbm(u, v, 6, 6, 81),
       w = tfbm(u, v, 4, 3, 82) - 0.5;
-    o[0] = clamp(255 * (n * 1.25 - 0.12), 0, 255);
+    output[0] = clamp(255 * (grainNoise * 1.25 - 0.12), 0, 255);
     if (jointed) {
-      const warp = w * 0.22 + (n - 0.5) * 0.08;
+      const warp = w * 0.22 + (grainNoise - 0.5) * 0.08;
       // Independently spaced vertical joints stop in competent beds; the oblique set only opens in patches.
       const trace = u * 7 + 0.17 * Math.sin(v * Math.PI * 2) + warp;
       const joint = (Math.round(trace) % 7 + 7) % 7;
@@ -38,7 +38,7 @@ export function createRockTexture(seed = 0, { fractures = 'cells' } = {}) {
       const seam = fractureLine(bedCoordinate, 6, hash2, 85, 0.065);
       const open = tfbm(u, v, 4, 2, 86);
       const crossOpen = tfbm(u, v, 3, 2, 87);
-      o[1] = 255 * Math.max(
+      output[1] = 255 * Math.max(
         steep * opening * sstep(0.37, 0.61, open),
         cross * sstep(0.53, 0.76, crossOpen) * 0.64,
         seam * sstep(0.36, 0.72, crossOpen) * 0.60,
@@ -46,11 +46,11 @@ export function createRockTexture(seed = 0, { fractures = 'cells' } = {}) {
     } else {
       const e1 = cellEdge(hash2, u + w * 0.05, v - w * 0.03, 5, 83);
       const e2 = cellEdge(hash2, u - w * 0.03, v + w * 0.05, 13, 84);
-      o[1] = 255 * Math.max(
+      output[1] = 255 * Math.max(
         sstep(0.014, 0.003, e1) * sstep(0.55, 0.66, tfbm(u, v, 5, 2, 86)),
         0.5 * sstep(0.009, 0.002, e2) * sstep(0.66, 0.74, tfbm(u, v, 7, 2, 87)),
       );
     }
-    o[2] = 255 * tfbm(u, v, 4, 5, 85);
+    output[2] = 255 * tfbm(u, v, 4, 5, 85);
   };
 }

@@ -28,17 +28,17 @@ const _p = new THREE.Vector3(),
   _dir = new THREE.Vector3();
 
 // Moves a point off the neck and the shoulders (o.neck: how far from the neck's axis; o.shoulder: half the shoulders' breadth).
-function clearNeck(p, o) {
-  if (p.y < HAIRLINE && p.z > FACE_EDGE) p.z = FACE_EDGE;
-  if (p.y >= -0.075) return;
-  const low = sstep(-0.14, -0.215, p.y),
-    rx = lerp(o.neck, o.shoulder + 0.035, low),
-    rz = lerp(o.neck, SHOULDER_DEEP, low),
-    z = p.z + 0.012,
-    q = Math.hypot(p.x / rx, z / rz);
+function clearNeck(point, options) {
+  if (point.y < HAIRLINE && point.z > FACE_EDGE) point.z = FACE_EDGE;
+  if (point.y >= -0.075) return;
+  const low = sstep(-0.14, -0.215, point.y),
+    rx = lerp(options.neck, options.shoulder + 0.035, low),
+    rz = lerp(options.neck, SHOULDER_DEEP, low),
+    z = point.z + 0.012,
+    q = Math.hypot(point.x / rx, z / rz);
   if (q < 1) {
-    p.x /= q;
-    p.z = z / q - 0.012;
+    point.x /= q;
+    point.z = z / q - 0.012;
   }
 }
 
@@ -47,22 +47,22 @@ function clearNeck(p, o) {
 // segs, base, rise and tip (its lift off the mass at the root, how much more by its end, and how far its tip stands up besides,
 // metres), wave and coil (how far it winds from side to side and how fast), curl (how far it turns at each step, one way),
 // phase, neck and shoulder.
-function layLock(mass, root, o) {
+function layLock(mass, root, options) {
   const points = [],
-    step = o.length / o.segs;
+    step = options.length / options.segs;
   _dir.copy(root);
-  for (let i = 0; i <= o.segs; i++) {
-    const u = i / o.segs,
-      lift = o.base + o.rise * u + o.tip * u * u * u;
+  for (let i = 0; i <= options.segs; i++) {
+    const u = i / options.segs,
+      lift = options.base + options.rise * u + options.tip * u * u * u;
     mass.at(_dir, lift, _p, _n);
-    clearNeck(_p, o);
+    clearNeck(_p, options);
     points.push([_p.x, _p.y, _p.z, _n.x, _n.y, _n.z, lift]);
-    if (i === o.segs) break;
-    o.flow(_dir, _f);
-    _f.x += o.aside[0];
-    _f.z += o.aside[1];
+    if (i === options.segs) break;
+    options.flow(_dir, _f);
+    _f.x += options.aside[0];
+    _f.z += options.aside[1];
     _f.addScaledVector(_n, -_f.dot(_n)).normalize();
-    const turn = (o.wave || 0) * Math.sin(o.phase + i * o.coil) + (o.curl || 0) * (i + 0.5);
+    const turn = (options.wave || 0) * Math.sin(options.phase + i * options.coil) + (options.curl || 0) * (i + 0.5);
     if (turn) _f.applyAxisAngle(_n, turn);
     mass.at(_dir, 0, _q).addScaledVector(_f, step);
     mass.skull.under(_q.x, _q.y, _q.z, _dir);
@@ -74,16 +74,16 @@ function layLock(mass, root, o) {
 // nape, then hanging over the fall of hair down the back. o: round (where round the fall it hangs, as the fall counts angles),
 // shape(y) (the fall's half-width, half-depth and middle at a height), from (the height at which it leaves the head, as a
 // share of the head's), end (how low it hangs), combed and segs (its lengths over the head and hanging), lift (metres off the mass), sway and phase (how it wavers as it hangs).
-function hangLock(mass, root, o) {
+function hangLock(mass, root, options) {
   const points = [];
-  _d.set(Math.cos(o.round), 0, Math.sin(o.round)).multiplyScalar(Math.sqrt(1 - o.from * o.from));
-  _d.y = o.from;
-  for (let i = 0; i <= o.combed; i++) {
-    const lift = 0.001 + o.lift * Math.sin((i / o.combed) * Math.PI * 0.5);
+  _d.set(Math.cos(options.round), 0, Math.sin(options.round)).multiplyScalar(Math.sqrt(1 - options.from * options.from));
+  _d.y = options.from;
+  for (let i = 0; i <= options.combed; i++) {
+    const lift = 0.001 + options.lift * Math.sin((i / options.combed) * Math.PI * 0.5);
     mass.at(
       _s
         .copy(root)
-        .lerp(_d, i / o.combed)
+        .lerp(_d, i / options.combed)
         .normalize(),
       lift,
       _p,
@@ -92,14 +92,14 @@ function hangLock(mass, root, o) {
     points.push([_p.x, _p.y, _p.z, _n.x, _n.y, _n.z, lift]);
   }
   const top = _p.y;
-  for (let j = 1; j <= o.segs; j++) {
-    const t = j / o.segs,
-      y = lerp(top, o.end, t),
-      [rx, rz, cz] = o.shape(y),
-      a = o.round + o.sway * Math.sin(o.phase + j * 1.3) * t,
+  for (let j = 1; j <= options.segs; j++) {
+    const t = j / options.segs,
+      y = lerp(top, options.end, t),
+      [rx, rz, cz] = options.shape(y),
+      angle = options.round + options.sway * Math.sin(options.phase + j * 1.3) * t,
       out = 0.004 + 0.006 * t;
-    _n.set(Math.cos(a) / rx, 0.6, Math.sin(a) / rz).normalize();
-    points.push([Math.cos(a) * (rx + out), y, cz + Math.sin(a) * (rz + out), _n.x, _n.y, _n.z, FREE]);
+    _n.set(Math.cos(angle) / rx, 0.6, Math.sin(angle) / rz).normalize();
+    points.push([Math.cos(angle) * (rx + out), y, cz + Math.sin(angle) * (rz + out), _n.x, _n.y, _n.z, FREE]);
   }
   return points;
 }
@@ -111,18 +111,18 @@ function drawLock(patch, place, mass, points, half, colour, tone, strand) {
   const last = points.length - 1,
     first = patch.points.length / POINT;
   for (let i = 0; i <= last; i++) {
-    const p = points[i],
-      a = points[Math.max(0, i - 1)],
-      b = points[Math.min(last, i + 1)],
+    const point = points[i],
+      previousPoint = points[Math.max(0, i - 1)],
+      nextPoint = points[Math.min(last, i + 1)],
       u = i / last,
       wide = half * (0.4 + 0.6 * Math.sin(Math.min(1, u * 3) * Math.PI * 0.5)) * lerp(1, TIP, Math.pow(u, 1.4)),
       shade = tone * lerp(ROOT_SHADE, TIP_SHADE, u);
-    _d.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-    _n.set(p[3], p[4], p[5]);
+    _d.set(nextPoint[0] - previousPoint[0], nextPoint[1] - previousPoint[1], nextPoint[2] - previousPoint[2]);
+    _n.set(point[3], point[4], point[5]);
     _s.crossVectors(_d, _n).normalize();
     for (const k of [-1, 1]) {
-      _p.set(p[0] + _s.x * wide * k, p[1] + _s.y * wide * k, p[2] + _s.z * wide * k);
-      if (p[6] !== FREE) mass.at(mass.skull.under(_p.x, _p.y, _p.z, _dir), p[6], _p, _q);
+      _p.set(point[0] + _s.x * wide * k, point[1] + _s.y * wide * k, point[2] + _s.z * wide * k);
+      if (point[6] !== FREE) mass.at(mass.skull.under(_p.x, _p.y, _p.z, _dir), point[6], _p, _q);
       else _q.copy(_n);
       const v = place([
           _p.x,

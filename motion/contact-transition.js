@@ -13,9 +13,9 @@ export function createContactTransition({
   if (!(Number.isFinite(duration) && duration > 0 && 0 < arriveAt && arriveAt <= transferAt &&
       transferAt <= leaveAt && leaveAt < 1)) throw new RangeError('Expected positive duration and ordered contact fractions');
   let elapsed = 0, transferred = false;
-  return function advance(dt) {
+  return function advance(deltaSeconds) {
     if (elapsed === duration) return true;
-    elapsed = Math.min(duration, elapsed + Math.max(0, dt));
+    elapsed = Math.min(duration, elapsed + Math.max(0, deltaSeconds));
     const phase = elapsed / duration;
     const approach = sstep(0, arriveAt, phase);
     const weight = approach * (1 - sstep(leaveAt, 1, phase));

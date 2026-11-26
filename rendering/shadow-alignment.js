@@ -10,10 +10,10 @@ export function createShadowSnap() {
     if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
     right.normalize();
     up.crossVectors(direction, right);
-    const a = Math.round((x * right.x + y * right.y + z * right.z) / texelWidth) * texelWidth;
-    const u = Math.round((x * up.x + y * up.y + z * up.z) / texelHeight) * texelHeight;
-    const d = x * direction.x + y * direction.y + z * direction.z;
-    return out.set(0, 0, 0).addScaledVector(right, a).addScaledVector(up, u).addScaledVector(direction, d);
+    const snappedRight = Math.round((x * right.x + y * right.y + z * right.z) / texelWidth) * texelWidth;
+    const snappedUp = Math.round((x * up.x + y * up.y + z * up.z) / texelHeight) * texelHeight;
+    const depth = x * direction.x + y * direction.y + z * direction.z;
+    return out.set(0, 0, 0).addScaledVector(right, snappedRight).addScaledVector(up, snappedUp).addScaledVector(direction, depth);
   };
 }
 

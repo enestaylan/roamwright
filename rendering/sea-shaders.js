@@ -1,21 +1,21 @@
 // The noise foam is torn by, shared by every water (the sea's surf, a wake) and the beach.
 export const FOAM_GLSL = `/* glsl */
-      float seaHash(vec2 c) { c = mod(c, 289.0); return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453); }
-      float seaNoise(vec2 x) {
-        vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(seaHash(i), seaHash(i + vec2(1.0, 0.0)), f.x), mix(seaHash(i + vec2(0.0, 1.0)), seaHash(i + vec2(1.0, 1.0)), f.x), f.y);
+      float seaHash(vec2 cell) { cell = mod(cell, 289.0); return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453); }
+      float seaNoise(vec2 samplePosition) {
+        vec2 cell = floor(samplePosition), blend = fract(samplePosition); blend = blend * blend * (3.0 - 2.0 * blend);
+        return mix(mix(seaHash(cell), seaHash(cell + vec2(1.0, 0.0)), blend.x), mix(seaHash(cell + vec2(0.0, 1.0)), seaHash(cell + vec2(1.0, 1.0)), blend.x), blend.y);
       }
       // foam's lace, 0 to 1: threads of foam round holes of clear water, gathered in patches tens of metres across; once the
       // threads would be finer than a pixel, the share of the water they cover (px: metres to a pixel)
-      float seaLace(vec2 q, float t, float px) {
-        vec2 a = q * 0.55 + vec2(0.07, 0.04) * t;
-        float n = seaNoise(a + 1.6 * vec2(seaNoise(a * 0.43 - 0.03 * t), seaNoise(a * 0.43 + 5.2)));
-        float n2 = seaNoise(q * 1.7 - vec2(0.05, 0.11) * t);
+      float seaLace(vec2 waterPosition, float elapsedTime, float metresPerPixel) {
+        vec2 coarsePosition = waterPosition * 0.55 + vec2(0.07, 0.04) * elapsedTime;
+        float coarseNoise = seaNoise(coarsePosition + 1.6 * vec2(seaNoise(coarsePosition * 0.43 - 0.03 * elapsedTime), seaNoise(coarsePosition * 0.43 + 5.2)));
+        float fineNoise = seaNoise(waterPosition * 1.7 - vec2(0.05, 0.11) * elapsedTime);
         // a thread is about a tenth of a metre wide, the finer net's a third of that: each fades to its share of the water
         // while it is still a pixel or two wide, or it crawls and sparkles as the foam drifts
-        float coarse = mix(0.2, smoothstep(0.72, 0.93, 1.0 - abs(2.0 * n - 1.0)), 1.0 - smoothstep(0.03, 0.1, px));
-        float fine = mix(0.08, smoothstep(0.78, 0.95, 1.0 - abs(2.0 * n2 - 1.0)), 1.0 - smoothstep(0.01, 0.035, px));
-        float gathered = mix(0.35, 1.0, smoothstep(0.3, 0.7, seaNoise(q * 0.09 + 3.1)));
+        float coarse = mix(0.2, smoothstep(0.72, 0.93, 1.0 - abs(2.0 * coarseNoise - 1.0)), 1.0 - smoothstep(0.03, 0.1, metresPerPixel));
+        float fine = mix(0.08, smoothstep(0.78, 0.95, 1.0 - abs(2.0 * fineNoise - 1.0)), 1.0 - smoothstep(0.01, 0.035, metresPerPixel));
+        float gathered = mix(0.35, 1.0, smoothstep(0.3, 0.7, seaNoise(waterPosition * 0.09 + 3.1)));
         return max(coarse, 0.7 * fine) * gathered;
       }`;
 

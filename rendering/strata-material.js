@@ -59,35 +59,35 @@ const FULL_LIGHT = 'float rockShade(vec2 xz) { return 1.0; }';
 
 export function createStrataMaterial({ texture, palette, snowline = 1e7, shading = FULL_LIGHT, vertex = STATIC_VERTEX, uniforms = {} }) {
   const head = vertex + '\nvarying vec3 vWP, vWN; varying vec4 vRock; varying float vYY;';
-  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
+  const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
   const colors = {};
   for (const key of ['dark', 'light', 'iron', 'shale', 'dust', 'lichen', 'crust', 'snow']) {
     const rgb = palette[key];
     if (!rgb || rgb.length !== 3 || !rgb.every(Number.isFinite)) throw new TypeError('Expected a linear RGB triple for ' + key);
     colors['u' + key[0].toUpperCase() + key.slice(1)] = { value: new Color(...rgb) };
   }
-  m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, uniforms, colors, { uRockTex: { value: texture }, uSnowline: { value: snowline } });
-    sh.vertexShader = sh.vertexShader
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, uniforms, colors, { uRockTex: { value: texture }, uSnowline: { value: snowline } });
+    shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + head)
       .replace('#include <beginnormal_vertex>', 'cliffMorph(); vec3 objectNormal = cN;')
       .replace('#include <begin_vertex>', 'vec3 transformed = cP; vWP = cP; vWN = cN; vRock = aRock; vYY = aYY;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nif (cHide > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);');
-    sh.fragmentShader = sh.fragmentShader
+    shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + shading + '\n' + CLIFF_FRAG_HEAD + '\n' + terrainReliefGLSL)
       .replace('#include <color_fragment>', CLIFF_FRAG)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.62, gSnow);')
       .replace('#include <normal_fragment_maps>', CLIFF_BUMP);
   };
-  m.customProgramCacheKey = () => 'strata:' + vertex + ':' + shading;
+  material.customProgramCacheKey = () => 'strata:' + vertex + ':' + shading;
   const depth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
-  depth.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, uniforms);
-    sh.vertexShader = sh.vertexShader
+  depth.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + vertex)
       .replace('#include <begin_vertex>', 'cliffMorph(); vec3 transformed = cP;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nif (cHide > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);');
   };
   depth.customProgramCacheKey = () => 'strata-depth:' + vertex;
-  return { material: m, depth };
+  return { material: material, depth };
 }

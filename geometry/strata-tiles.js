@@ -11,20 +11,20 @@ export function createStrataTiles({ size, levels, cliffMask, cliffPoint, groundC
     if (region) return; // planned already
     const mn = new Float32Array(MASK_SIDE * MASK_SIDE);
     region = new Uint8Array(MASK_SIDE * MASK_SIDE);
-    for (let b = 0; b < MASK_SIDE; b++)
-      for (let a = 0; a < MASK_SIDE; a++) mn[b * MASK_SIDE + a] = cliffMask(a * levels[2] - half, b * levels[2] - half);
-    for (let b = 0; b < MASK_SIDE - 1; b++)
-      for (let a = 0; a < MASK_SIDE - 1; a++) {
-        const k = b * MASK_SIDE + a;
+    for (let row = 0; row < MASK_SIDE; row++)
+      for (let column = 0; column < MASK_SIDE; column++) mn[row * MASK_SIDE + column] = cliffMask(column * levels[2] - half, row * levels[2] - half);
+    for (let row = 0; row < MASK_SIDE - 1; row++)
+      for (let column = 0; column < MASK_SIDE - 1; column++) {
+        const k = row * MASK_SIDE + column;
         if (Math.max(mn[k], mn[k + 1], mn[k + MASK_SIDE], mn[k + MASK_SIDE + 1]) > 0.004) region[k] = 1;
       }
     for (let tj = 0; tj < tilesSide; tj++)
       for (let ti = 0; ti < tilesSide; ti++) {
         const n = tileSize / levels[2];
         let any = false;
-        for (let b = tj * n; b < (tj + 1) * n && b < MASK_SIDE - 1 && !any; b++)
-          for (let a = ti * n; a < (ti + 1) * n && a < MASK_SIDE - 1; a++)
-            if (region[b * MASK_SIDE + a]) {
+        for (let row = tj * n; row < (tj + 1) * n && row < MASK_SIDE - 1 && !any; row++)
+          for (let column = ti * n; column < (ti + 1) * n && column < MASK_SIDE - 1; column++)
+            if (region[row * MASK_SIDE + column]) {
               any = true;
               break;
             }
@@ -32,55 +32,55 @@ export function createStrataTiles({ size, levels, cliffMask, cliffPoint, groundC
       }
   }
   const inRegion = (x, z) => {
-    const a = Math.floor((x + half) / levels[2]),
-      b = Math.floor((z + half) / levels[2]);
-    return a >= 0 && b >= 0 && a < MASK_SIDE - 1 && b < MASK_SIDE - 1 && region[b * MASK_SIDE + a] === 1;
+    const column = Math.floor((x + half) / levels[2]),
+      row = Math.floor((z + half) / levels[2]);
+    return column >= 0 && row >= 0 && column < MASK_SIDE - 1 && row < MASK_SIDE - 1 && region[row * MASK_SIDE + column] === 1;
   };
 
   // One level's node grid over a tile, with a ring of one node round it for the normals: positions for every node that a rock cell touches
   // (and their ring), normals for the cell corners.
   const pt = { p: [0, 0, 0] };
-  function tileGrid(t, lv, keepAttrs) {
-    const g = levels[lv],
+  function tileGrid(t, levelIndex, keepAttrs) {
+    const g = levels[levelIndex],
       n = tileSize / g,
       w = n + 3,
       used = new Uint8Array(w * w),
       corner = new Uint8Array(w * w);
-    for (let b = 0; b < n; b++)
-      for (let a = 0; a < n; a++) {
-        if (!inRegion(t.x0 + (a + 0.5) * g, t.z0 + (b + 0.5) * g)) continue;
-        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) used[(b + j) * w + a + i] = 1;
-        for (let j = 1; j < 3; j++) for (let i = 1; i < 3; i++) corner[(b + j) * w + a + i] = 1;
+    for (let row = 0; row < n; row++)
+      for (let column = 0; column < n; column++) {
+        if (!inRegion(t.x0 + (column + 0.5) * g, t.z0 + (row + 0.5) * g)) continue;
+        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) used[(row + j) * w + column + i] = 1;
+        for (let j = 1; j < 3; j++) for (let i = 1; i < 3; i++) corner[(row + j) * w + column + i] = 1;
       }
-    const P = new Float32Array(w * w * 3),
-      N = new Float32Array(w * w * 3),
-      A = keepAttrs ? new Float32Array(w * w * 6) : null;
-    for (let b = 0; b < w; b++)
-      for (let a = 0; a < w; a++) {
-        const k = b * w + a;
+    const positions = new Float32Array(w * w * 3),
+      normals = new Float32Array(w * w * 3),
+      attributes = keepAttrs ? new Float32Array(w * w * 6) : null;
+    for (let row = 0; row < w; row++)
+      for (let column = 0; column < w; column++) {
+        const k = row * w + column;
         if (!used[k]) continue;
-        cliffPoint(t.x0 + (a - 1) * g, t.z0 + (b - 1) * g, lv, pt);
-        P[k * 3] = pt.p[0];
-        P[k * 3 + 1] = pt.p[1];
-        P[k * 3 + 2] = pt.p[2];
-        if (A) {
-          A[k * 6] = pt.bed;
-          A[k * 6 + 1] = pt.hard;
-          A[k * 6 + 2] = pt.cav;
-          A[k * 6 + 3] = pt.m;
-          A[k * 6 + 4] = pt.yy;
+        cliffPoint(t.x0 + (column - 1) * g, t.z0 + (row - 1) * g, levelIndex, pt);
+        positions[k * 3] = pt.p[0];
+        positions[k * 3 + 1] = pt.p[1];
+        positions[k * 3 + 2] = pt.p[2];
+        if (attributes) {
+          attributes[k * 6] = pt.bed;
+          attributes[k * 6 + 1] = pt.hard;
+          attributes[k * 6 + 2] = pt.cav;
+          attributes[k * 6 + 3] = pt.m;
+          attributes[k * 6 + 4] = pt.yy;
         }
       }
-    for (let b = 1; b < w - 1; b++)
-      for (let a = 1; a < w - 1; a++) {
-        const k = b * w + a;
+    for (let row = 1; row < w - 1; row++)
+      for (let column = 1; column < w - 1; column++) {
+        const k = row * w + column;
         if (!corner[k]) continue;
-        const ax = P[(k + 1) * 3] - P[(k - 1) * 3],
-          ay = P[(k + 1) * 3 + 1] - P[(k - 1) * 3 + 1],
-          az = P[(k + 1) * 3 + 2] - P[(k - 1) * 3 + 2];
-        const bx = P[(k + w) * 3] - P[(k - w) * 3],
-          by = P[(k + w) * 3 + 1] - P[(k - w) * 3 + 1],
-          bz = P[(k + w) * 3 + 2] - P[(k - w) * 3 + 2];
+        const ax = positions[(k + 1) * 3] - positions[(k - 1) * 3],
+          ay = positions[(k + 1) * 3 + 1] - positions[(k - 1) * 3 + 1],
+          az = positions[(k + 1) * 3 + 2] - positions[(k - 1) * 3 + 2];
+        const bx = positions[(k + w) * 3] - positions[(k - w) * 3],
+          by = positions[(k + w) * 3 + 1] - positions[(k - w) * 3 + 1],
+          bz = positions[(k + w) * 3 + 2] - positions[(k - w) * 3 + 2];
         let nx = by * az - bz * ay,
           ny = bz * ax - bx * az,
           nz = bx * ay - by * ax;
@@ -88,38 +88,38 @@ export function createStrataTiles({ size, levels, cliffMask, cliffPoint, groundC
         nx /= l;
         ny /= l;
         nz /= l;
-        N[k * 3] = nx;
-        N[k * 3 + 1] = ny;
-        N[k * 3 + 2] = nz;
+        normals[k * 3] = nx;
+        normals[k * 3 + 1] = ny;
+        normals[k * 3 + 2] = nz;
       }
-    return { g, n, w, P, N, A, corner };
+    return { g, n, w, P: positions, N: normals, A: attributes, corner };
   }
   // A coarser grid's surface at a point of the tile, interpolated over its triangles as that level's mesh draws them.
-  function sample(c, lx, lz, arr, out) {
-    const fx = Math.min(lx / c.g, c.n - 1e-6),
-      fz = Math.min(lz / c.g, c.n - 1e-6),
+  function sample(tile, lx, lz, arr, out) {
+    const fx = Math.min(lx / tile.g, tile.n - 1e-6),
+      fz = Math.min(lz / tile.g, tile.n - 1e-6),
       i = Math.floor(fx),
       j = Math.floor(fz),
       tx = fx - i,
       tz = fz - j;
-    const k = (j + 1) * c.w + i + 1,
-      a = k * 3,
-      b = (k + 1) * 3,
-      d = (k + c.w) * 3,
-      e = (k + c.w + 1) * 3;
+    const k = (j + 1) * tile.w + i + 1,
+      nearLeft = k * 3,
+      nearRight = (k + 1) * 3,
+      farLeft = (k + tile.w) * 3,
+      e = (k + tile.w + 1) * 3;
     for (let q = 0; q < 3; q++)
       out[q] =
         tx + tz <= 1
-          ? arr[a + q] + (arr[b + q] - arr[a + q]) * tx + (arr[d + q] - arr[a + q]) * tz
-          : arr[e + q] + (arr[d + q] - arr[e + q]) * (1 - tx) + (arr[b + q] - arr[e + q]) * (1 - tz);
+          ? arr[nearLeft + q] + (arr[nearRight + q] - arr[nearLeft + q]) * tx + (arr[farLeft + q] - arr[nearLeft + q]) * tz
+          : arr[e + q] + (arr[farLeft + q] - arr[e + q]) * (1 - tx) + (arr[nearRight + q] - arr[e + q]) * (1 - tz);
     return out;
   }
 
   // The arrays of one level of a box of tiles, as a generator that yields now and then so the work can be spread over frames; it returns
   // { attributes: { name: [array, itemSize] }, index, bounds: [tile id, lowest y, highest y, ...] }.
-  function* boxArrays(lv, list) {
-    const pos = [],
-      nor = [],
+  function* boxArrays(levelIndex, list) {
+    const positions = [],
+      normals = [],
       m1 = [],
       n1 = [],
       m2 = [],
@@ -128,30 +128,30 @@ export function createStrataTiles({ size, levels, cliffMask, cliffPoint, groundC
       rock = [],
       yy = [],
       par = [],
-      idx = [],
+      indices = [],
       s3 = [0, 0, 0],
       c3 = [0, 0, 0],
       bounds = [];
     for (const t of list) {
-      const f = tileGrid(t, lv, true);
+      const f = tileGrid(t, levelIndex, true);
       yield;
-      const c1 = lv < 2 ? tileGrid(t, lv + 1, false) : null,
-        c2 = lv < 1 ? tileGrid(t, 2, false) : null;
+      const c1 = levelIndex < 2 ? tileGrid(t, levelIndex + 1, false) : null,
+        c2 = levelIndex < 1 ? tileGrid(t, 2, false) : null;
       if (c1) yield;
       const map = new Int32Array(f.w * f.w).fill(-1),
-        base = pos.length / 3;
+        base = positions.length / 3;
       let vi = base,
         y0 = 1e9,
         y1 = -1e9;
-      for (let b = 1; b < f.w - 1; b++)
-        for (let a = 1; a < f.w - 1; a++) {
-          const k = b * f.w + a;
+      for (let row = 1; row < f.w - 1; row++)
+        for (let column = 1; column < f.w - 1; column++) {
+          const k = row * f.w + column;
           if (!f.corner[k]) continue;
           map[k] = vi++;
-          pos.push(f.P[k * 3], f.P[k * 3 + 1], f.P[k * 3 + 2]);
-          nor.push(f.N[k * 3], f.N[k * 3 + 1], f.N[k * 3 + 2]);
-          const lx = (a - 1) * f.g,
-            lz = (b - 1) * f.g,
+          positions.push(f.P[k * 3], f.P[k * 3 + 1], f.P[k * 3 + 2]);
+          normals.push(f.N[k * 3], f.N[k * 3 + 1], f.N[k * 3 + 2]);
+          const lx = (column - 1) * f.g,
+            lz = (row - 1) * f.g,
             x = t.x0 + lx,
             z = t.z0 + lz;
           if (c1) {
@@ -174,31 +174,31 @@ export function createStrataTiles({ size, levels, cliffMask, cliffPoint, groundC
           y1 = Math.max(y1, f.P[k * 3 + 1]);
         }
       bounds.push(t.id, y0, y1);
-      for (let b = 1; b < f.w - 2; b++)
-        for (let a = 1; a < f.w - 2; a++) {
-          if (!inRegion(t.x0 + (a - 0.5) * f.g, t.z0 + (b - 0.5) * f.g)) continue;
-          const i00 = map[b * f.w + a],
-            i10 = map[b * f.w + a + 1],
-            i01 = map[(b + 1) * f.w + a],
-            i11 = map[(b + 1) * f.w + a + 1];
-          idx.push(i00, i01, i10, i10, i01, i11);
+      for (let row = 1; row < f.w - 2; row++)
+        for (let column = 1; column < f.w - 2; column++) {
+          if (!inRegion(t.x0 + (column - 0.5) * f.g, t.z0 + (row - 0.5) * f.g)) continue;
+          const i00 = map[row * f.w + column],
+            i10 = map[row * f.w + column + 1],
+            i01 = map[(row + 1) * f.w + column],
+            i11 = map[(row + 1) * f.w + column + 1];
+          indices.push(i00, i01, i10, i10, i01, i11);
         }
       yield;
     }
-    const F = (a, n) => [new Float32Array(a), n],
-      attributes = { position: F(pos, 3), normal: F(nor, 3), color: F(col, 3), aRock: F(rock, 4), aYY: F(yy, 1), aParam: F(par, 3) };
-    if (lv < 2) Object.assign(attributes, { aM1: F(m1, 3), aN1: F(n1, 3) });
-    if (lv < 1) Object.assign(attributes, { aM2: F(m2, 3), aN2: F(n2, 3) });
-    return { attributes, index: pos.length / 3 > 65535 ? new Uint32Array(idx) : new Uint16Array(idx), bounds };
+    const packAttribute = (values, n) => [new Float32Array(values), n],
+      attributes = { position: packAttribute(positions, 3), normal: packAttribute(normals, 3), color: packAttribute(col, 3), aRock: packAttribute(rock, 4), aYY: packAttribute(yy, 1), aParam: packAttribute(par, 3) };
+    if (levelIndex < 2) Object.assign(attributes, { aM1: packAttribute(m1, 3), aN1: packAttribute(n1, 3) });
+    if (levelIndex < 1) Object.assign(attributes, { aM2: packAttribute(m2, 3), aN2: packAttribute(n2, 3) });
+    return { attributes, index: positions.length / 3 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), bounds };
   }
-  const boxKey = (t, lv) => Math.floor((t.x0 + half) / boxSizes[lv]) + ':' + Math.floor((t.z0 + half) / boxSizes[lv]);
-  function tilesIn(lv, key) {
-    return tiles.filter(t => boxKey(t, lv) === key);
+  const boxKey = (t, levelIndex) => Math.floor((t.x0 + half) / boxSizes[levelIndex]) + ':' + Math.floor((t.z0 + half) / boxSizes[levelIndex]);
+  function tilesIn(levelIndex, key) {
+    return tiles.filter(t => boxKey(t, levelIndex) === key);
   }
 
-  // The arrays of the box `key` at level `lv`, all at once.
-  function boxNow(lv, key) {
-    const it = boxArrays(lv, tilesIn(lv, key));
+  // The arrays of the box `key` at level `levelIndex`, all at once.
+  function boxNow(levelIndex, key) {
+    const it = boxArrays(levelIndex, tilesIn(levelIndex, key));
     for (;;) {
       const step = it.next();
       if (step.done) return step.value;

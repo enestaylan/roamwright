@@ -5,10 +5,10 @@ export function circleClearances(centres, gapFraction = 0) {
   if (!(gapFraction >= 0 && gapFraction < 1)) throw new RangeError('gapFraction must be in [0, 1)');
   const nearestSq = new Float64Array(centres.length).fill(Infinity);
   for (let i = 0; i < centres.length; i++) {
-    const a = centres[i];
+    const centre = centres[i];
     for (let j = i + 1; j < centres.length; j++) {
-      const b = centres[j];
-      const distanceSq = (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
+      const neighbour = centres[j];
+      const distanceSq = (centre.x - neighbour.x) ** 2 + (centre.z - neighbour.z) ** 2;
       nearestSq[i] = Math.min(nearestSq[i], distanceSq);
       nearestSq[j] = Math.min(nearestSq[j], distanceSq);
     }

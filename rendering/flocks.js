@@ -21,26 +21,26 @@ export const WRIST = 0.8; // and the wrists
 const SPAN = 3.2; // a bird across the wings at size 1
 
 /** A bird's geometry from its look: position, aW (0 body, 1 arm, 2 hand), and for a coloured look, color and aUnder. */
-export function birdGeometry(L) {
-  const P = [],
-    W = [],
+export function birdGeometry(birdStyle) {
+  const positions = [],
+    wingWeights = [],
     K = [],
     U = [], // the under face's colour and which way the triangle's front face looks (1 up, -1 down, 0 one colour on both faces)
-    col = L.colours,
-    tri = (a, b, c, w = 0, part = 'body') => {
-      P.push(...a, ...b, ...c);
-      W.push(w, w, w);
+    col = birdStyle.colours,
+    tri = (firstPoint, secondPoint, thirdPoint, w = 0, part = 'body') => {
+      positions.push(...firstPoint, ...secondPoint, ...thirdPoint);
+      wingWeights.push(w, w, w);
       if (!col) return;
-      const under = L.under?.[part],
-        up = Math.sign((b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]));
-      for (const p of [a, b, c]) {
-        const tip = part !== 'body' && part !== 'head' && Math.abs(p[0]) > L.tips;
+      const under = birdStyle.under?.[part],
+        up = Math.sign((secondPoint[2] - firstPoint[2]) * (thirdPoint[0] - firstPoint[0]) - (secondPoint[0] - firstPoint[0]) * (thirdPoint[2] - firstPoint[2]));
+      for (const p of [firstPoint, secondPoint, thirdPoint]) {
+        const tip = part !== 'body' && part !== 'head' && Math.abs(p[0]) > birdStyle.tips;
         K.push(...(tip ? col.tip : col[part]));
-        if (L.under) U.push(...(under && !tip ? under : tip ? col.tip : col[part]), under && !tip ? up : 0);
+        if (birdStyle.under) U.push(...(under && !tip ? under : tip ? col.tip : col[part]), under && !tip ? up : 0);
       }
     };
   // the body: rings along z [z, half width, half height, centre y], from the beak's tip to the root of the tail
-  const R = [
+  const bodyRings = [
       [1.08, 0, 0, 0.02],
       [0.86, 0.06, 0.06, 0.04],
       [0.68, 0.1, 0.1, 0.05],
@@ -51,63 +51,63 @@ export function birdGeometry(L) {
     ],
     AROUND = 6,
     at = (r, j) => {
-      const a = (j / AROUND) * TAU;
-      return [Math.cos(a) * r[1], r[3] + Math.sin(a) * r[2], r[0]];
+      const angle = (j / AROUND) * TAU;
+      return [Math.cos(angle) * r[1], r[3] + Math.sin(angle) * r[2], r[0]];
     };
-  for (let i = 0; i < R.length - 1; i++)
+  for (let i = 0; i < bodyRings.length - 1; i++)
     for (let j = 0; j < AROUND; j++) {
-      const a = at(R[i], j),
-        b = at(R[i], j + 1),
-        c = at(R[i + 1], j),
-        d = at(R[i + 1], j + 1);
+      const ringStart = at(bodyRings[i], j),
+        ringEnd = at(bodyRings[i], j + 1),
+        nextRingStart = at(bodyRings[i + 1], j),
+        nextRingEnd = at(bodyRings[i + 1], j + 1);
       const part = i < 2 ? 'head' : 'body';
-      tri(a, c, d, 0, part);
-      if (i > 0) tri(a, d, b, 0, part);
+      tri(ringStart, nextRingStart, nextRingEnd, 0, part);
+      if (i > 0) tri(ringStart, nextRingEnd, ringEnd, 0, part);
     }
   // the tail, a fan a little wider at its end, its middle feathers longest
-  const [back, wide] = L.tail;
+  const [back, wide] = birdStyle.tail;
   tri([-0.05, 0.02, -0.5], [0.05, 0.02, -0.5], [wide, 0.02, -back + 0.08]);
   tri([-0.05, 0.02, -0.5], [wide, 0.02, -back + 0.08], [0, 0.02, -back]);
   tri([-0.05, 0.02, -0.5], [0, 0.02, -back], [-wide, 0.02, -back + 0.08]);
   for (const s of [-1, 1]) {
     const X = (x, y, z) => [s * x, y, z];
     for (const [rows, w] of [
-      [L.arm, 1],
-      [L.hand, 2],
+      [birdStyle.arm, 1],
+      [birdStyle.hand, 2],
     ])
       for (let i = 0; i < rows.length - 1; i++) {
-        const a = rows[i],
-          b = rows[i + 1],
-          la = X(a[0], a[1], a[2]),
-          ta = X(a[3], a[4], a[5]),
-          lb = X(b[0], b[1], b[2]),
-          tb = X(b[3], b[4], b[5]);
+        const currentRow = rows[i],
+          nextRow = rows[i + 1],
+          la = X(currentRow[0], currentRow[1], currentRow[2]),
+          ta = X(currentRow[3], currentRow[4], currentRow[5]),
+          lb = X(nextRow[0], nextRow[1], nextRow[2]),
+          tb = X(nextRow[3], nextRow[4], nextRow[5]);
         tri(la, ta, tb, w, w === 1 ? 'arm' : 'hand');
         tri(la, tb, lb, w, w === 1 ? 'arm' : 'hand');
       }
-    for (const [x, z, dx, dz] of L.fingers) tri(X(x - 0.07, 0.01, z + 0.05), X(x + 0.05, 0.01, z + 0.04), X(x + dx, 0, z + dz), 2, 'tip');
+    for (const [x, z, dx, dz] of birdStyle.fingers) tri(X(x - 0.07, 0.01, z + 0.05), X(x + 0.05, 0.01, z + 0.04), X(x + dx, 0, z + dz), 2, 'tip');
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  g.setAttribute('aW', new THREE.Float32BufferAttribute(W, 1));
-  if (col) g.setAttribute('color', new THREE.Float32BufferAttribute(K, 3));
-  if (U.length) g.setAttribute('aUnder', new THREE.Float32BufferAttribute(U, 4));
-  g.computeVertexNormals();
-  return g;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('aW', new THREE.Float32BufferAttribute(wingWeights, 1));
+  if (col) geometry.setAttribute('color', new THREE.Float32BufferAttribute(K, 3));
+  if (U.length) geometry.setAttribute('aUnder', new THREE.Float32BufferAttribute(U, 4));
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 /** A plain bird for far or stylised flocks: a body diamond and two wings, aW marking how far out along the wing a vertex sits. */
 export function plainBirdGeometry() {
-  const g = new THREE.BufferGeometry();
-  const P = [
+  const geometry = new THREE.BufferGeometry();
+  const positions = [
     0, 0, 0.9, 0.22, 0, 0, -0.22, 0, 0, 0.22, 0, 0, 0, 0, -1.0, -0.22, 0, 0, 0.2, 0, 0.35, 1.5, 0, 0.05, 0.2, 0, -0.35, -0.2, 0, -0.35,
     -1.5, 0, 0.05, -0.2, 0, 0.35,
   ];
-  const W = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
-  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  g.setAttribute('aW', new THREE.Float32BufferAttribute(W, 1));
-  g.computeVertexNormals();
-  return g;
+  const wingWeights = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('aW', new THREE.Float32BufferAttribute(wingWeights, 1));
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 // The beat in the vertex shader: the arm about the shoulder, the hand about the wrist a little behind it, drawn in and swept back
@@ -133,9 +133,9 @@ const UNDER_HEAD = /* glsl */ ` attribute vec4 aUnder; varying vec4 vUnder;`,
 
 /** A plumage's colour (hex, sRGB) lifted to the linear luminance `least` if darker, its hue kept: black feathers still shine. */
 export function plumage(hex, least = 0.035) {
-  const c = new THREE.Color(hex),
-    lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-  return lum < least ? c.multiplyScalar(least / Math.max(lum, 1e-4)) : c;
+  const color = new THREE.Color(hex),
+    lum = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  return lum < least ? color.multiplyScalar(least / Math.max(lum, 1e-4)) : color;
 }
 
 /**
@@ -171,19 +171,19 @@ export function createFlock({
   key = look ? 'bird' : 'plain',
 }) {
   const bird = !!look,
-    g = bird ? birdGeometry(look) : plainBirdGeometry(),
+    geometry = bird ? birdGeometry(look) : plainBirdGeometry(),
     flap = bird ? new THREE.InstancedBufferAttribute(new Float32Array(n * 2), 2) : null;
-  if (flap) g.setAttribute('aFlap', flap.setUsage(THREE.DynamicDrawUsage));
+  if (flap) geometry.setAttribute('aFlap', flap.setUsage(THREE.DynamicDrawUsage));
   const coloured = bird && !!look.colours,
     under = bird && !!look.under,
-    mat = new THREE.MeshStandardMaterial({
+    material = new THREE.MeshStandardMaterial({
       color: coloured ? 0xffffff : bird ? plumage(color, least) : color,
       vertexColors: coloured,
       roughness: (bird && look.gloss) || roughness,
       side: THREE.DoubleSide,
       flatShading: true,
     });
-  mat.onBeforeCompile = sh => {
+  material.onBeforeCompile = sh => {
     sh.uniforms.uTime = time;
     if (bird) sh.uniforms.uBeat = { value: look.beat * TAU };
     sh.vertexShader = sh.vertexShader
@@ -211,8 +211,8 @@ export function createFlock({
         .replace('#include <common>', '#include <common>\nvarying vec4 vUnder;')
         .replace('#include <color_fragment>', '#include <color_fragment>' + UNDER);
   };
-  mat.customProgramCacheKey = () => 'flock:' + key + (coloured ? ':coloured' : '') + (under ? ':under' : '');
-  const mesh = new THREE.InstancedMesh(g, mat, n);
+  material.customProgramCacheKey = () => 'flock:' + key + (coloured ? ':coloured' : '') + (under ? ':under' : '');
+  const mesh = new THREE.InstancedMesh(geometry, material, n);
   mesh.frustumCulled = false;
   const birds = [];
   for (let i = 0; i < n; i++)
@@ -251,9 +251,9 @@ function flockFlight({ mesh, birds, flap, size, lens, bird, soar, silent, calls,
       dx = p.x - at.x,
       dy = p.y - at.y,
       dz = p.z - at.z,
-      d = Math.hypot(dx, dy, dz);
-    if (d >= clear) return;
-    const k = clear / Math.max(d, 1e-3);
+      distance = Math.hypot(dx, dy, dz);
+    if (distance >= clear) return;
+    const k = clear / Math.max(distance, 1e-3);
     p.x = at.x + dx * k;
     p.y = at.y + dy * k;
     p.z = at.z + dz * k;
@@ -263,10 +263,10 @@ function flockFlight({ mesh, birds, flap, size, lens, bird, soar, silent, calls,
     if (!calls || silent || t < nextCall) return;
     nextCall = t + gap[0] + Math.random() * (gap[1] - gap[0]);
     const e = mesh.instanceMatrix.array,
-      o = Math.floor(Math.random() * n) * 16,
-      x = e[o + 12],
-      y = e[o + 13],
-      z = e[o + 14];
+      matrixOffset = Math.floor(Math.random() * n) * 16,
+      x = e[matrixOffset + 12],
+      y = e[matrixOffset + 13],
+      z = e[matrixOffset + 14];
     if (Math.hypot(x - lens.position.x, y - lens.position.y, z - lens.position.z) > heard) return;
     calls.sound(x, y, z, loud);
   }
@@ -281,21 +281,21 @@ function flockFlight({ mesh, birds, flap, size, lens, bird, soar, silent, calls,
     // own, so that a wider circle is flown faster.
     update(cx, cy, cz, radius, height, t, airspeed = 0) {
       const first = last === null,
-        dt = first ? 0 : Math.min(0.1, Math.max(0, t - last)),
+        deltaSeconds = first ? 0 : Math.min(0.1, Math.max(0, t - last)),
         bob = Math.min(BOB, BOB_SHARE * height);
       last = t;
       for (let i = 0; i < n; i++) {
-        const b = birds[i],
-          r = radius * b.r,
-          dir = b.sp > 0 ? 1 : -1,
-          pace = 0.8 + (Math.abs(b.sp) - 0.05) * 5, // 0.8 to 1.2: some birds fly a little faster than others
-          turn = airspeed > 0 ? (dir * airspeed * pace) / Math.max(r, 1) : b.sp * 6; // radians a second round the circle
-        b.a = first ? b.ph + t * turn : b.a + turn * dt;
-        const a = b.a,
-          yaw = -a + (dir > 0 ? 0 : Math.PI);
-        place.x = cx + Math.cos(a) * r;
-        place.z = cz + Math.sin(a) * r;
-        place.y = cy + b.h * height + Math.sin(t * BOB_RATE + b.wob) * bob;
+        const flockMember = birds[i],
+          r = radius * flockMember.r,
+          dir = flockMember.sp > 0 ? 1 : -1,
+          pace = 0.8 + (Math.abs(flockMember.sp) - 0.05) * 5, // 0.8 to 1.2: some birds fly a little faster than others
+          turn = airspeed > 0 ? (dir * airspeed * pace) / Math.max(r, 1) : flockMember.sp * 6; // radians a second round the circle
+        flockMember.a = first ? flockMember.ph + t * turn : flockMember.a + turn * deltaSeconds;
+        const orbitAngle = flockMember.a,
+          yaw = -orbitAngle + (dir > 0 ? 0 : Math.PI);
+        place.x = cx + Math.cos(orbitAngle) * r;
+        place.z = cz + Math.sin(orbitAngle) * r;
+        place.y = cy + flockMember.h * height + Math.sin(t * BOB_RATE + flockMember.wob) * bob;
         place.ry = yaw;
         if (!bird) {
           place.rx = 0;
@@ -304,16 +304,16 @@ function flockFlight({ mesh, birds, flap, size, lens, bird, soar, silent, calls,
           continue;
         }
         const speed = Math.abs(turn) * r,
-          climb = bob * BOB_RATE * Math.cos(t * BOB_RATE + b.wob), // metres a second up
+          climb = bob * BOB_RATE * Math.cos(t * BOB_RATE + flockMember.wob), // metres a second up
           bank = Math.min(MAX_BANK, Math.atan((speed * Math.abs(turn)) / GRAVITY)) * dir,
           pitch = Math.atan2(climb, Math.max(speed, 1));
-        b.beat += (sstep(-0.6, 0.2, climb) * (soar ? SOAR_BEAT : 1) - b.beat) * Math.min(1, dt * BEAT_EASE);
+        flockMember.beat += (sstep(-0.6, 0.2, climb) * (soar ? SOAR_BEAT : 1) - flockMember.beat) * Math.min(1, deltaSeconds * BEAT_EASE);
         keepFromLens(place);
         place.rx = -pitch;
         place.rz = bank;
         placeBankedAt(mesh.instanceMatrix.array, i * 16, place);
-        flap.array[i * 2] = b.ph * 3;
-        flap.array[i * 2 + 1] = b.beat;
+        flap.array[i * 2] = flockMember.ph * 3;
+        flap.array[i * 2 + 1] = flockMember.beat;
       }
       mesh.instanceMatrix.needsUpdate = true;
       if (flap) flap.needsUpdate = true;

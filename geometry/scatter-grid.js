@@ -51,16 +51,16 @@ export function createScatterGrid({ rings, hash, seeds, fill, start, finish }) {
       grid.outer = Math.max(inner, half * grid.cell - grid.refill);
       inner = grid.outer;
       if (grid.halfUsed === half && Math.abs(x - grid.x) + Math.abs(z - grid.z) < grid.refill) continue;
-      const ix = Math.floor(x / grid.cell), iz = Math.floor(z / grid.cell);
+      const centreColumn = Math.floor(x / grid.cell), centreRow = Math.floor(z / grid.cell);
       grid.x = x;
       grid.z = z;
       grid.halfUsed = half;
       grid.count = 0;
       start?.(level);
-      for (let row = iz - half; row < iz + half; row++) {
-        for (let col = ix - half; col < ix + half; col++) {
-          const h1 = hash(col, row, seeds[0]), h2 = hash(col, row, seeds[1]);
-          if (fill(level, grid.count, (col + h1) * grid.cell, (row + h2) * grid.cell, h1, h2, col, row, grid.cell)) grid.count++;
+      for (let row = centreRow - half; row < centreRow + half; row++) {
+        for (let col = centreColumn - half; col < centreColumn + half; col++) {
+          const offsetX = hash(col, row, seeds[0]), offsetZ = hash(col, row, seeds[1]);
+          if (fill(level, grid.count, (col + offsetX) * grid.cell, (row + offsetZ) * grid.cell, offsetX, offsetZ, col, row, grid.cell)) grid.count++;
         }
       }
       changed = true;

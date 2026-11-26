@@ -9,17 +9,17 @@ const _tint = [0, 0, 0],
 function shapeParts() {
   return { p: [], n: [], c: [], l: [] };
 }
-// Adds a geometry to parts, placed by matrix m, each vertex coloured by tint(x, y, z, out) in its own space; leaf 1 for foliage.
-function addShape(parts, geo, m, tint, leaf) {
-  const g = geo.index ? geo.toNonIndexed() : geo,
-    pa = g.attributes.position.array,
-    na = g.attributes.normal.array;
-  _n3.getNormalMatrix(m);
-  for (let i = 0; i < pa.length; i += 3) {
-    tint(pa[i], pa[i + 1], pa[i + 2], _tint);
-    _v.set(pa[i], pa[i + 1], pa[i + 2]).applyMatrix4(m);
+// Adds a geometry to parts, placed by the transform matrix, each vertex coloured by tint(x, y, z, out) in its own space; leaf 1 for foliage.
+function addShape(parts, geometry, transform, tint, leaf) {
+  const sourceGeometry = geometry.index ? geometry.toNonIndexed() : geometry,
+    positions = sourceGeometry.attributes.position.array,
+    normals = sourceGeometry.attributes.normal.array;
+  _n3.getNormalMatrix(transform);
+  for (let i = 0; i < positions.length; i += 3) {
+    tint(positions[i], positions[i + 1], positions[i + 2], _tint);
+    _v.set(positions[i], positions[i + 1], positions[i + 2]).applyMatrix4(transform);
     parts.p.push(_v.x, _v.y, _v.z);
-    _v.set(na[i], na[i + 1], na[i + 2])
+    _v.set(normals[i], normals[i + 1], normals[i + 2])
       .applyMatrix3(_n3)
       .normalize();
     parts.n.push(_v.x, _v.y, _v.z);

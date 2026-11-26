@@ -4,15 +4,15 @@ import * as THREE from 'three';
 // while its accumulated displacement carries them smoothly through changes of wind.
 export function createRainStreaks({ capacity, windUniforms, random = Math.random }) {
   if (!(Number.isSafeInteger(capacity) && capacity > 0)) throw new RangeError('Rain capacity must be a positive integer');
-  const geo = new THREE.InstancedBufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0], 3));
-  geo.setIndex([0, 1, 2, 0, 2, 3]);
+  const geometry = new THREE.InstancedBufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0], 3));
+  geometry.setIndex([0, 1, 2, 0, 2, 3]);
   {
     const off = new Float32Array(capacity * 4);
     for (let i = 0; i < off.length; i++) off[i] = random();
-    geo.setAttribute('aOff', new THREE.InstancedBufferAttribute(off, 4));
+    geometry.setAttribute('aOff', new THREE.InstancedBufferAttribute(off, 4));
   }
-  geo.instanceCount = capacity;
+  geometry.instanceCount = capacity;
   const rainU = {
     uCam: { value: new THREE.Vector3() },
     uTime: { value: 0 },
@@ -50,14 +50,14 @@ export function createRainStreaks({ capacity, windUniforms, random = Math.random
         gl_FragColor = vec4(uCol, a * 0.34);
       }`,
   });
-  const mesh = new THREE.Mesh(geo, rainMat);
+  const mesh = new THREE.Mesh(geometry, rainMat);
   mesh.frustumCulled = false;
   mesh.visible = false;
 
   // Camera position in world space, elapsed seconds, shower intensity and fraction of capacity.
   function update(eye, seconds, intensity, density = 1) {
-    geo.instanceCount = Math.round(capacity * THREE.MathUtils.clamp(density, 0, 1));
-    mesh.visible = intensity > 0 && geo.instanceCount > 0;
+    geometry.instanceCount = Math.round(capacity * THREE.MathUtils.clamp(density, 0, 1));
+    mesh.visible = intensity > 0 && geometry.instanceCount > 0;
     if (!mesh.visible) return;
     rainU.uCam.value.copy(eye);
     rainU.uTime.value = seconds;

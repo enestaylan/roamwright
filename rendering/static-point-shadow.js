@@ -14,8 +14,8 @@ export function createStaticPointShadow(renderer) {
   let previousClear;
 
   function framebuffer(target, face) {
-    const fb = renderer.properties.get(target).__webglFramebuffer;
-    return target.isWebGLCubeRenderTarget ? fb[face] : fb;
+    const framebuffer = renderer.properties.get(target).__webglFramebuffer;
+    return target.isWebGLCubeRenderTarget ? framebuffer[face] : framebuffer;
   }
 
   function copyFace(source, destination, face) {
@@ -56,7 +56,7 @@ export function createStaticPointShadow(renderer) {
     const target = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), level = renderer.getActiveMipmapLevel();
     try {
       renderer.setRenderTarget(map);
-      for (let f = 0; f < (map.isWebGLCubeRenderTarget ? 6 : 1); f++) copyFace(map, picture, f);
+      for (let faceIndex = 0; faceIndex < (map.isWebGLCubeRenderTarget ? 6 : 1); faceIndex++) copyFace(map, picture, faceIndex);
     } finally { renderer.setRenderTarget(target, face, level); }
     origin.copy(current);
     cachedNear = shadow.camera.near;

@@ -73,14 +73,16 @@ import { heightfieldSampler } from 'roamwright/geometry/heightfield.js';
 
 const canvas = document.querySelector('canvas');
 const { renderer, scene, camera, worldGroup } = createRenderContext(canvas);
-const { fbm } = createNoise(42);
+const { fbm: fractalNoise } = createNoise(42);
 
 // Sample the terrain once per vertex. Smaller input frequencies make broader hills.
 const terrain = new THREE.PlaneGeometry(40, 40, 32, 32).rotateX(-Math.PI / 2);
 const positions = terrain.getAttribute('position');
-for (let i = 0; i < positions.count; i++) {
-  const x = positions.getX(i), z = positions.getZ(i);
-  positions.setY(i, 8 * fbm(x / 18, z / 18, 4, 7));
+for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex++) {
+  const x = positions.getX(vertexIndex);
+  const z = positions.getZ(vertexIndex);
+  const elevation = 8 * fractalNoise(x / 18, z / 18, 4, 7);
+  positions.setY(vertexIndex, elevation);
 }
 terrain.computeVertexNormals();
 worldGroup.add(new THREE.Mesh(terrain, new THREE.MeshStandardMaterial({ color: 0x739362 })));

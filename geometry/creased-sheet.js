@@ -13,32 +13,32 @@ export function creasedSheet(
   { wrap = false, inside = false, crease = -1, tint = null, slopeFrom = 0, slopeTo = 1 } = {},
 ) {
   if (rows.length < 2 || rows[0].length < 2) return;
-  const nv = rows.length - 1,
+  const rowSegments = rows.length - 1,
     cols = rows[0].length,
-    nu = wrap ? cols : cols - 1,
-    faces = new Float64Array(nv * nu * 6), // each cell's two triangles' normals, as long as twice their areas
+    columnSegments = wrap ? cols : cols - 1,
+    faces = new Float64Array(rowSegments * columnSegments * 6), // each cell's two triangles' normals, as long as twice their areas
     side = inside ? -1 : 1,
     next = i => (wrap && i === cols - 1 ? 0 : i + 1);
-  const cross = (o, a, b, c, at) => {
-    const ux = b[0] - a[0],
-      uy = b[1] - a[1],
-      uz = b[2] - a[2],
-      vx = c[0] - a[0],
-      vy = c[1] - a[1],
-      vz = c[2] - a[2];
-    o[at] = (uy * vz - uz * vy) * side;
-    o[at + 1] = (uz * vx - ux * vz) * side;
-    o[at + 2] = (ux * vy - uy * vx) * side;
+  const cross = (output, pointA, pointB, pointC, at) => {
+    const ux = pointB[0] - pointA[0],
+      uy = pointB[1] - pointA[1],
+      uz = pointB[2] - pointA[2],
+      vx = pointC[0] - pointA[0],
+      vy = pointC[1] - pointA[1],
+      vz = pointC[2] - pointA[2];
+    output[at] = (uy * vz - uz * vy) * side;
+    output[at + 1] = (uz * vx - ux * vz) * side;
+    output[at + 2] = (ux * vy - uy * vx) * side;
   };
-  for (let j = 0; j < nv; j++)
-    for (let i = 0; i < nu; i++) {
-      const a = rows[j][i],
-        b = rows[j][next(i)],
-        c = rows[j + 1][next(i)],
-        d = rows[j + 1][i],
-        at = (j * nu + i) * 6;
-      cross(faces, a, b, c, at);
-      cross(faces, a, c, d, at + 3);
+  for (let j = 0; j < rowSegments; j++)
+    for (let i = 0; i < columnSegments; i++) {
+      const topLeft = rows[j][i],
+        topRight = rows[j][next(i)],
+        bottomRight = rows[j + 1][next(i)],
+        bottomLeft = rows[j + 1][i],
+        at = (j * columnSegments + i) * 6;
+      cross(faces, topLeft, topRight, bottomRight, at);
+      cross(faces, topLeft, bottomRight, bottomLeft, at + 3);
     }
   const length = at => Math.hypot(faces[at], faces[at + 1], faces[at + 2]);
   // The normal at point (j, i) for the triangle whose normal starts at `own` in faces: the triangles round the point that lie
@@ -48,22 +48,22 @@ export function creasedSheet(
       const ol = length(own) || 1;
       normal[0] = normal[1] = normal[2] = 0;
       for (let qj = j - 1; qj <= j; qj++) {
-        if (qj < 0 || qj >= nv) continue;
+        if (qj < 0 || qj >= rowSegments) continue;
         for (let s = -1; s <= 0; s++) {
           let qi = i + s;
           if (qi < 0) {
             if (!wrap) continue;
             qi += cols;
           }
-          if (qi >= nu) continue;
-          // which of the cell's two triangles (a b c and a c d) have this point as a corner: b is in the first only, d in the second
+          if (qi >= columnSegments) continue;
+          // The top-right corner belongs only to the first triangle, the bottom-left only to the second.
           const lower = qj === j,
             left = qi === i,
             isB = lower && !left,
             isD = !lower && left;
           for (let t = 0; t < 2; t++) {
             if ((t === 0 && isD) || (t === 1 && isB)) continue;
-            const at = (qj * nu + qi) * 6 + t * 3,
+            const at = (qj * columnSegments + qi) * 6 + t * 3,
               l = length(at);
             if (l < 1e-12) continue;
             if ((faces[at] * faces[own] + faces[at + 1] * faces[own + 1] + faces[at + 2] * faces[own + 2]) / (l * ol) < crease) continue;
@@ -82,14 +82,14 @@ export function creasedSheet(
       return normal;
     };
   const corner = (j, i, own) => {
-    const p = rows[j][i],
+    const point = rows[j][i],
       n = pointNormal(j, i, own),
       tone = tones[j][i],
       lay = tint ? sstep(slopeFrom, slopeTo, n[1]) : 0;
     builder.raw(
-      p[0],
-      p[1],
-      p[2],
+      point[0],
+      point[1],
+      point[2],
       n[0],
       n[1],
       n[2],
@@ -98,11 +98,11 @@ export function creasedSheet(
       tone[2] + (tint ? (tint[2] - tone[2]) * lay : 0),
     );
   };
-  for (let j = 0; j < nv; j++)
-    for (let i = 0; i < nu; i++) {
-      const at = (j * nu + i) * 6,
+  for (let j = 0; j < rowSegments; j++)
+    for (let i = 0; i < columnSegments; i++) {
+      const at = (j * columnSegments + i) * 6,
         i1 = next(i);
-      // a b c, then a c d; seen from inside, a c b and a d c
+      // Both triangles share the top-left to bottom-right diagonal. Reverse their winding for an inside surface.
       if (length(at) > 1e-12) {
         corner(j, i, at);
         if (inside) {

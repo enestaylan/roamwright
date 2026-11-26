@@ -36,97 +36,97 @@ export function createNoise(worldSeed = 0) {
       fz = z - iz;
     const ux = fx * fx * (3 - 2 * fx),
       uz = fz * fz * (3 - 2 * fz);
-    const a = hash2(ix, iz, seed),
-      b = hash2(ix + 1, iz, seed),
-      c = hash2(ix, iz + 1, seed),
-      d = hash2(ix + 1, iz + 1, seed);
-    return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+    const nearLeft = hash2(ix, iz, seed),
+      nearRight = hash2(ix + 1, iz, seed),
+      farLeft = hash2(ix, iz + 1, seed),
+      farRight = hash2(ix + 1, iz + 1, seed);
+    return nearLeft + (nearRight - nearLeft) * ux + (farLeft - nearLeft) * uz + (nearLeft - nearRight - farLeft + farRight) * ux * uz;
   }
   /**
    * Average layers of value noise, halving the weight at each finer scale.
    * @param {number} x - First-octave X.
    * @param {number} z - First-octave Z.
-   * @param {number} oct - Positive integer octave count.
+   * @param {number} octaves - Positive integer octave count.
    * @param {number} seed - Integer sample seed.
    */
-  function fbm(x, z, oct, seed) {
-    let s = 0,
-      a = 0.5,
-      n = 0;
-    for (let i = 0; i < oct; i++) {
-      s += a * vnoise(x, z, seed + i * 17);
-      n += a;
-      a *= 0.5;
+  function fbm(x, z, octaves, seed) {
+    let weightedSum = 0,
+      amplitude = 0.5,
+      totalWeight = 0;
+    for (let octave = 0; octave < octaves; octave++) {
+      weightedSum += amplitude * vnoise(x, z, seed + octave * 17);
+      totalWeight += amplitude;
+      amplitude *= 0.5;
       x = x * 2.03 + 11.7;
       z = z * 2.03 - 5.3;
     }
-    return s / n;
+    return weightedSum / totalWeight;
   }
   /**
    * Layer sharp crests where the underlying value noise crosses its midpoint.
    * @param {number} x - First-octave X.
    * @param {number} z - First-octave Z.
-   * @param {number} oct - Positive integer octave count.
+   * @param {number} octaves - Positive integer octave count.
    * @param {number} seed - Integer sample seed.
    */
-  function ridged(x, z, oct, seed) {
-    let s = 0,
-      a = 0.5,
-      n = 0;
-    for (let i = 0; i < oct; i++) {
-      const v = 1 - Math.abs(vnoise(x, z, seed + i * 31) * 2 - 1);
-      s += a * v * v;
-      n += a;
-      a *= 0.5;
+  function ridged(x, z, octaves, seed) {
+    let weightedSum = 0,
+      amplitude = 0.5,
+      totalWeight = 0;
+    for (let octave = 0; octave < octaves; octave++) {
+      const ridgeValue = 1 - Math.abs(vnoise(x, z, seed + octave * 31) * 2 - 1);
+      weightedSum += amplitude * ridgeValue * ridgeValue;
+      totalWeight += amplitude;
+      amplitude *= 0.5;
       x = x * 2.1 + 3.1;
       z = z * 2.1 + 8.9;
     }
-    return s / n;
+    return weightedSum / totalWeight;
   }
   /**
    * Sample smooth noise that repeats after a whole number of lattice cells.
    * @param {number} x - Horizontal lattice coordinate.
    * @param {number} y - Vertical lattice coordinate.
-   * @param {number} per - Positive integer period along X.
+   * @param {number} period - Positive integer period along X.
    * @param {number} seed - Integer sample seed.
-   * @param {number} [perY] - Vertical period in cells. Defaults to per.
+   * @param {number} [verticalPeriod] - Vertical period in cells. Defaults to per.
    */
-  function tnoise(x, y, per, seed, perY = per) {
+  function tnoise(x, y, period, seed, verticalPeriod = period) {
     const ix = Math.floor(x),
       iy = Math.floor(y),
       fx = x - ix,
       fy = y - iy;
     const ux = fx * fx * (3 - 2 * fx),
       uy = fy * fy * (3 - 2 * fy);
-    const x0 = ((ix % per) + per) % per,
-      x1 = (x0 + 1) % per,
-      y0 = ((iy % perY) + perY) % perY,
-      y1 = (y0 + 1) % perY;
-    const a = hash2(x0, y0, seed),
-      b = hash2(x1, y0, seed),
-      c = hash2(x0, y1, seed),
-      d = hash2(x1, y1, seed);
-    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+    const x0 = ((ix % period) + period) % period,
+      x1 = (x0 + 1) % period,
+      y0 = ((iy % verticalPeriod) + verticalPeriod) % verticalPeriod,
+      y1 = (y0 + 1) % verticalPeriod;
+    const nearLeft = hash2(x0, y0, seed),
+      nearRight = hash2(x1, y0, seed),
+      farLeft = hash2(x0, y1, seed),
+      farRight = hash2(x1, y1, seed);
+    return nearLeft + (nearRight - nearLeft) * ux + (farLeft - nearLeft) * uy + (nearLeft - nearRight - farLeft + farRight) * ux * uy;
   }
   /**
    * Layer tileable noise in UV space. Adding one to u or v repeats the same sample.
    * @param {number} u - Horizontal texture coordinate.
    * @param {number} v - Vertical texture coordinate.
-   * @param {number} per - Positive integer first-octave cell count per tile.
-   * @param {number} oct - Positive integer octave count.
+   * @param {number} period - Positive integer first-octave cell count per tile.
+   * @param {number} octaves - Positive integer octave count.
    * @param {number} seed - Integer sample seed.
    */
-  function tfbm(u, v, per, oct, seed) {
-    let s = 0,
-      a = 0.5,
-      n = 0;
-    for (let i = 0; i < oct; i++) {
-      s += a * tnoise(u * per, v * per, per, seed + i * 13);
-      n += a;
-      a *= 0.5;
-      per *= 2;
+  function tfbm(u, v, period, octaves, seed) {
+    let weightedSum = 0,
+      amplitude = 0.5,
+      totalWeight = 0;
+    for (let octave = 0; octave < octaves; octave++) {
+      weightedSum += amplitude * tnoise(u * period, v * period, period, seed + octave * 13);
+      totalWeight += amplitude;
+      amplitude *= 0.5;
+      period *= 2;
     }
-    return s / n;
+    return weightedSum / totalWeight;
   }
   return { fbm, ridged, tfbm, tnoise, vnoise };
 }

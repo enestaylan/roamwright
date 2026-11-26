@@ -9,12 +9,12 @@ const FOLD_SLOPES = [110, 30];
 const PIPES = { n: 46, half: [0.009, 0.024], wander: [0.005, 0.016], tall: [0.45, 1], lasts: [0.07, 0.2], foot: 2.3, flank: 0.5 },
   CRUMPLE = { per: 6, octaves: 2, seed: 83, full: 1.6 }, // the crumple's noise: cells a tile, and how far from its middle value it is at its full height
   STEP = 1 / 512; // how far apart a field is read to find its slope (tiles)
-const around = d => d - Math.round(d), // the nearest way round a tile
+const around = offset => offset - Math.round(offset), // the nearest way round a tile
   byte = slope => clamp(127.5 + 127.5 * slope, 0, 255);
 // The long folds' fill: a pixel's bytes from its place in the tile.
 function garmentFolds(foldSeed) {
   const rand = mulberry32(foldSeed),
-    between = ([a, b]) => a + (b - a) * rand(),
+    between = ([minimum, maximum]) => minimum + (maximum - minimum) * rand(),
     pipes = [];
   for (let k = 0; k < PIPES.n; k++)
     pipes.push({
@@ -65,10 +65,10 @@ const cloth = (threads, hash2, tfbm) => (u, v, o) => {
     thread = Math.sin(Math.PI * along), // round across the thread on top, darker where it dips under
     tone = over ? hash2(i, 0, 69) : hash2(j, 1, 69), // one thread spun a little thicker or paler than the next
     wear = tfbm(u, v, 4, 4, 70);
-  const c = clamp(158 + wear * 56 + (thread - 0.64) * 20 + (tone - 0.5) * 12, 0, 255);
-  o[0] = c;
-  o[1] = c * 0.99;
-  o[2] = c * 0.975;
+  const brightness = clamp(158 + wear * 56 + (thread - 0.64) * 20 + (tone - 0.5) * 12, 0, 255);
+  o[0] = brightness;
+  o[1] = brightness * 0.99;
+  o[2] = brightness * 0.975;
 };
 
 function createClothTextures({ seed = 0, foldSeed = seed, threads = 64 } = {}) {

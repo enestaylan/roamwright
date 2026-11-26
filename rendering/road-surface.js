@@ -2,9 +2,9 @@ import * as THREE from 'three';
 
 // Packed earth, wheel ruts and rain-dependent puddles on a road strip.
 const ROAD_COMMON = `/* glsl */ varying vec4 vRoad; varying vec3 vRW; float gPud = 0.0;
-  float rh(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
-  float rn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(rh(i), rh(i + vec2(1, 0)), f.x), mix(rh(i + vec2(0, 1)), rh(i + vec2(1, 1)), f.x), f.y); }
+  float rh(vec2 samplePosition){ vec3 mixed = fract(vec3(samplePosition.xyx) * .1031); mixed += dot(mixed, mixed.yzx + 33.33); return fract((mixed.x + mixed.y) * mixed.z); }
+  float rn(vec2 samplePosition){ vec2 cell = floor(samplePosition), blend = fract(samplePosition); blend = blend * blend * (3.0 - 2.0 * blend);
+    return mix(mix(rh(cell), rh(cell + vec2(1, 0)), blend.x), mix(rh(cell + vec2(0, 1)), rh(cell + vec2(1, 1)), blend.x), blend.y); }
   varying vec3 vVerge; uniform sampler2D uGrit; uniform float uRoadDamp;`;
 const ROAD_SURFACE = `/* glsl */
   float x = vRoad.x, s = vRoad.y, hw = vRoad.z, fine = smoothstep(160.0, 45.0, length(vViewPosition));      // fine grain fades out before it can shimmer
@@ -31,7 +31,7 @@ const ROAD_SHEEN = `/* glsl */
   #include <opaque_fragment>`;
 
 export function createRoadMaterial({ grit, dampness = { value: 0 } }) {
-  const mat = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     transparent: true,
     depthWrite: false,
     vertexColors: true,
@@ -40,10 +40,10 @@ export function createRoadMaterial({ grit, dampness = { value: 0 } }) {
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
   });
-  mat.onBeforeCompile = sh => {
-    sh.uniforms.uGrit = { value: grit };
-    sh.uniforms.uRoadDamp = dampness;
-    sh.vertexShader = sh.vertexShader
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uGrit = { value: grit };
+    shader.uniforms.uRoadDamp = dampness;
+    shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         '#include <common>\nattribute vec4 road; attribute vec3 verge; varying vec4 vRoad; varying vec3 vRW, vVerge;',
@@ -52,12 +52,12 @@ export function createRoadMaterial({ grit, dampness = { value: 0 } }) {
         '#include <begin_vertex>',
         '#include <begin_vertex>\nvRoad = road; vVerge = verge; vRW = (modelMatrix * vec4(position, 1.0)).xyz;',
       );
-    sh.fragmentShader = sh.fragmentShader
+    shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + ROAD_COMMON)
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + ROAD_SURFACE)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = mix(roughness, 0.08, gPud);')
       .replace('#include <opaque_fragment>', ROAD_SHEEN);
   };
-  mat.customProgramCacheKey = () => 'road-earth';
-  return mat;
+  material.customProgramCacheKey = () => 'road-earth';
+  return material;
 }

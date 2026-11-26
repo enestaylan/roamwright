@@ -22,7 +22,7 @@ function pathBox(line) {
 
 /**
  * Find the closest point on a path strictly inside the search radius.
- * @param {{line: [number, number][], box: ReturnType<typeof pathBox>}} c - Polyline with its current bounds.
+ * @param {{line: [number, number][], box: ReturnType<typeof pathBox>}} path - Polyline with its current bounds.
  * @param {number} x - Query X in world units.
  * @param {number} z - Query Z in world units.
  * @param {number} reach - Maximum search distance in the same units.
@@ -31,23 +31,23 @@ function pathBox(line) {
  *   cross product of the segment direction with the query offset (positive for a point on the line).
  * @returns True on a hit. A miss leaves the result intact.
  */
-function nearestPathPoint(c, x, z, reach, near) {
-  const b = c.box;
-  if (x < b[0] - reach || x > b[1] + reach || z < b[2] - reach || z > b[3] + reach) return false;
+function nearestPathPoint(path, x, z, reach, near) {
+  const bounds = path.box;
+  if (x < bounds[0] - reach || x > bounds[1] + reach || z < bounds[2] - reach || z > bounds[3] + reach) return false;
   let best = reach * reach,
     at = -1;
-  for (let i = 0; i < c.line.length - 1; i++) {
-    const p = c.line[i],
-      q = c.line[i + 1],
-      dx = q[0] - p[0],
-      dz = q[1] - p[1],
-      px = x - p[0],
-      pz = z - p[1],
-      t = clamp((px * dx + pz * dz) / (dx * dx + dz * dz), 0, 1),
-      d = (px - dx * t) ** 2 + (pz - dz * t) ** 2;
-    if (d < best) {
-      best = d;
-      at = (i + t) / (c.line.length - 1);
+  for (let i = 0; i < path.line.length - 1; i++) {
+    const segmentStart = path.line[i],
+      segmentEnd = path.line[i + 1],
+      dx = segmentEnd[0] - segmentStart[0],
+      dz = segmentEnd[1] - segmentStart[1],
+      px = x - segmentStart[0],
+      pz = z - segmentStart[1],
+      segmentFraction = clamp((px * dx + pz * dz) / (dx * dx + dz * dz), 0, 1),
+      distanceSquared = (px - dx * segmentFraction) ** 2 + (pz - dz * segmentFraction) ** 2;
+    if (distanceSquared < best) {
+      best = distanceSquared;
+      at = (i + segmentFraction) / (path.line.length - 1);
       near.side = dx * pz - dz * px < 0 ? -1 : 1;
     }
   }
@@ -64,28 +64,28 @@ function nearestPathPoint(c, x, z, reach, near) {
  * segments before stamping if intermediate positions should also contribute.
  * @param {{x0: number, z0: number, width: number, height: number, spacing: number}} layout -
  *   Origin in world units, dimensions in samples and spacing in world units.
- * @param {[number, number][]} pts - Path samples in world X/Z.
+ * @param {[number, number][]} points - Path samples in world X/Z.
  * @param {number} radius - Nonnegative search extent in world units.
  * @param {Float32Array | Float64Array | number[]} grid - Writable row-major nearest distances.
  * @param {Float32Array | Float64Array | number[] | null} [valueGrid] - Optional companion grid updated when a sample wins.
  * @param {(t: number) => number} [valueFn] - Value at the normalized point index. Defaults to zero.
  */
-function stampPath({ x0, z0, width, height, spacing }, pts, radius, grid, valueGrid, valueFn) {
+function stampPath({ x0, z0, width, height, spacing }, points, radius, grid, valueGrid, valueFn) {
   if (!(spacing > 0) || !Number.isFinite(spacing) || !Number.isFinite(radius) || radius < 0) throw new RangeError('Expected positive spacing and a nonnegative radius');
-  const rc = Math.ceil(radius / spacing);
-  for (let s = 0; s < pts.length; s++) {
-    const px = pts[s][0],
-      pz = pts[s][1],
-      ci = Math.round((px - x0) / spacing),
-      cj = Math.round((pz - z0) / spacing);
-    const val = valueFn ? valueFn(pts.length > 1 ? s / (pts.length - 1) : 0) : 0;
-    for (let j = Math.max(0, cj - rc); j <= Math.min(height - 1, cj + rc); j++) {
-      for (let i = Math.max(0, ci - rc); i <= Math.min(width - 1, ci + rc); i++) {
-        const d = Math.hypot(i * spacing + x0 - px, j * spacing + z0 - pz),
-          k = j * width + i;
-        if (d < grid[k]) {
-          grid[k] = d;
-          if (valueGrid) valueGrid[k] = val;
+  const cellRadius = Math.ceil(radius / spacing);
+  for (let sampleIndex = 0; sampleIndex < points.length; sampleIndex++) {
+    const px = points[sampleIndex][0],
+      pz = points[sampleIndex][1],
+      centreColumn = Math.round((px - x0) / spacing),
+      centreRow = Math.round((pz - z0) / spacing);
+    const sampleValue = valueFn ? valueFn(points.length > 1 ? sampleIndex / (points.length - 1) : 0) : 0;
+    for (let j = Math.max(0, centreRow - cellRadius); j <= Math.min(height - 1, centreRow + cellRadius); j++) {
+      for (let i = Math.max(0, centreColumn - cellRadius); i <= Math.min(width - 1, centreColumn + cellRadius); i++) {
+        const distance = Math.hypot(i * spacing + x0 - px, j * spacing + z0 - pz),
+          cellIndex = j * width + i;
+        if (distance < grid[cellIndex]) {
+          grid[cellIndex] = distance;
+          if (valueGrid) valueGrid[cellIndex] = sampleValue;
         }
       }
     }

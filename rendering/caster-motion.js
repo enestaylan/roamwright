@@ -59,18 +59,18 @@ export function createCasterMotion({ scene, elapsed, listInterval = 2, skinnedRa
   // One mesh's share: its instances within reach, each by its place in the world (by the mesh's own matrix, mostly none) and turn.
   function shareOf(o, w, x, y, z, reach) {
     if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
-    const a = o.instanceMatrix.array,
+    const instanceMatrices = o.instanceMatrix.array,
       r = reach + o.geometry.boundingSphere.radius;
     let sum = 0;
     for (let k = 0; k < o.count; k++) {
       const j = k * 16,
-        px = a[j + 12],
-        py = a[j + 13],
-        pz = a[j + 14],
+        px = instanceMatrices[j + 12],
+        py = instanceMatrices[j + 13],
+        pz = instanceMatrices[j + 14],
         wx = w[0] * px + w[4] * py + w[8] * pz + w[12],
         wy = w[1] * px + w[5] * py + w[9] * pz + w[13],
         wz = w[2] * px + w[6] * py + w[10] * pz + w[14];
-      if ((wx - x) ** 2 + (wy - y) ** 2 + (wz - z) ** 2 < r * r) sum += (k + 1) * (wx + 3 * wy + 7 * wz + a[j] + 5 * a[j + 2]);
+      if ((wx - x) ** 2 + (wy - y) ** 2 + (wz - z) ** 2 < r * r) sum += (k + 1) * (wx + 3 * wy + 7 * wz + instanceMatrices[j] + 5 * instanceMatrices[j + 2]);
     }
     return sum;
   }

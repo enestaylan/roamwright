@@ -17,26 +17,26 @@ export function createCloudTextures({
       ix = Math.floor(gx),
       iz = Math.floor(gz);
     let near = 9;
-    for (let b = -1; b <= 1; b++)
-      for (let a = -1; a <= 1; a++) {
-        const cx = ix + a,
-          cz = iz + b,
+    for (let offsetZ = -1; offsetZ <= 1; offsetZ++)
+      for (let offsetX = -1; offsetX <= 1; offsetX++) {
+        const cx = ix + offsetX,
+          cz = iz + offsetZ,
           wx = ((cx % per) + per) % per,
           wz = ((cz % per) + per) % per,
-          d = (cx + 0.15 + 0.7 * hash2(wx, wz, seed) - gx) ** 2 + (cz + 0.15 + 0.7 * hash2(wx, wz, seed + 1) - gz) ** 2;
-        if (d < near) near = d;
+          distanceSquared = (cx + 0.15 + 0.7 * hash2(wx, wz, seed) - gx) ** 2 + (cz + 0.15 + 0.7 * hash2(wx, wz, seed + 1) - gz) ** 2;
+        if (distanceSquared < near) near = distanceSquared;
       }
     return Math.max(0, 1 - near * 2.2);
   }
   // Rounded lumps with creases between them, as a cloud's top is made of: domes at three sizes, from `per` to a sheet.
   function lumps(u, v, per, seed) {
     let s = 0,
-      a = 0.5,
+      amplitude = 0.5,
       n = 0;
     for (let i = 0; i < 3; i++) {
-      s += a * domes(u, v, per, seed + i * 13);
-      n += a;
-      a *= 0.5;
+      s += amplitude * domes(u, v, per, seed + i * 13);
+      n += amplitude;
+      amplitude *= 0.5;
       per *= 2;
     }
     return s / n;
@@ -44,11 +44,11 @@ export function createCloudTextures({
   // Streaks four times as long as they are wide, at three scales.
   function wisps(u, v) {
     let s = 0,
-      a = 0.5,
+      amplitude = 0.5,
       n = 0;
-    for (let i = 0, per = 3; i < 3; i++, per *= 2, a *= 0.5) {
-      s += a * tnoise(u * per, v * per * 4, per, 1259 + i * 13, per * 4);
-      n += a;
+    for (let i = 0, per = 3; i < 3; i++, per *= 2, amplitude *= 0.5) {
+      s += amplitude * tnoise(u * per, v * per * 4, per, 1259 + i * 13, per * 4);
+      n += amplitude;
     }
     return s / n;
   }
@@ -88,12 +88,12 @@ export function createCloudTextures({
         iy = Math.floor(y),
         iz = Math.floor(z);
       let near = 9;
-      for (let c = -1; c <= 1; c++)
-        for (let b = -1; b <= 1; b++)
-          for (let a = -1; a <= 1; a++) {
-            const k = ((wrap(iz + c) * per + wrap(iy + b)) * per + wrap(ix + a)) * 3,
-              d = (ix + a + middles[k] - x) ** 2 + (iy + b + middles[k + 1] - y) ** 2 + (iz + c + middles[k + 2] - z) ** 2;
-            if (d < near) near = d;
+      for (let offsetZ = -1; offsetZ <= 1; offsetZ++)
+        for (let offsetY = -1; offsetY <= 1; offsetY++)
+          for (let offsetX = -1; offsetX <= 1; offsetX++) {
+            const k = ((wrap(iz + offsetZ) * per + wrap(iy + offsetY)) * per + wrap(ix + offsetX)) * 3,
+              distanceSquared = (ix + offsetX + middles[k] - x) ** 2 + (iy + offsetY + middles[k + 1] - y) ** 2 + (iz + offsetZ + middles[k + 2] - z) ** 2;
+            if (distanceSquared < near) near = distanceSquared;
           }
       return Math.max(0, 1 - near * 1.7);
     };
