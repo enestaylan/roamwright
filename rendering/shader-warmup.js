@@ -60,12 +60,12 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
       }
       if (entry.programs.size) continue;
       pending.delete(entry);
-      entry.resolve();
+      entry.finish();
     }
     timer = pending.size ? setTimeout(poll, pollIntervalMs) : undefined;
   }
 
-  function begin(traverse, root, view, lit, yieldIfReady = false) {
+  function begin(traverse, root, view, lit, yieldIfReady = false, signal) {
     const materials = renderer.compile({
       traverse,
       traverseVisible: visit => { if (lit !== root) root.traverseVisible(visit); }
@@ -78,8 +78,19 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
       }
     }
     if (!programs.size && !yieldIfReady) return Promise.resolve();
-    return new Promise(resolve => {
-      pending.add({programs, resolve});
+    return new Promise((resolve, reject) => {
+      const entry = { programs, finish() {
+        signal?.removeEventListener('abort', abort);
+        resolve();
+      }};
+      function abort() {
+        pending.delete(entry);
+        if (!pending.size) { clearTimeout(timer); timer = undefined; }
+        reject(signal.reason);
+      }
+      if (signal?.aborted) { abort(); return; }
+      signal?.addEventListener('abort', abort, { once: true });
+      pending.add(entry);
       if (timer === undefined) timer = setTimeout(poll, 0);
     });
   }
@@ -98,9 +109,11 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
     return begin(visit => objects.forEach(visit), root, view, lit);
   }
 
-  async function compiledInTurn(root, view = camera, lit = scene, into = null) {
+  async function compiledInTurn(root, view = camera, lit = scene, into = null, signal) {
+    signal?.throwIfAborted();
     for (const object of representatives(root)) {
-      await withTarget(into, () => begin(visit => visit(object), root, view, lit, true));
+      signal?.throwIfAborted();
+      await withTarget(into, () => begin(visit => visit(object), root, view, lit, true, signal));
     }
   }
 
@@ -186,7 +199,7 @@ export function createShaderWarmup({renderer, scene, camera, postMaterials = () 
   function dispose() {
     clearTimeout(timer);
     timer = undefined;
-    for (const entry of pending) entry.resolve();
+    for (const entry of pending) entry.finish();
     pending.clear();
     quad.geometry.dispose();
     target.dispose();

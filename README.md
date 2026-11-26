@@ -111,6 +111,12 @@ Use `createContactTransition({ duration, pose, transfer })` from `motion/contact
 
 For a thrown prop, `sampleBallisticArc(out, from, to, phase, duration, gravity = 9.81)` in `motion/ballistic-arc.js` samples a gravity arc into an existing vector. The endpoints may have different heights and the destination can follow a moving hand.
 
+Use `createWithdrawableTask(work)` from `runtime/withdrawable-task.js` for optional detail. Concurrent calls to `request(input, pinned = false)` share the first input and promise. A pinned caller keeps that attempt alive. `withdraw()` aborts an optional attempt. A replacement waits for its predecessor to finish cleanup. The task passes `work(input, signal)` an AbortSignal. Successful results belong to the caller.
+
+Pass the signal to `paced(steps, signal)`, `drain(steps, signal)` and `handToCard(roots, signal)` in the upload scheduler. Cancelled steps close their iterator and temporary visibility and draw ranges are restored. For incremental shader preparation use `warmShaders(root, {signal})` and forward the fourth argument of your `beginCompiles` callback to `compiledInTurn(root, camera, scene, target, signal)`. Signalled warmups await compilation and propagate failures. Pass a stable object as `retryKey` when a retry builds a fresh root, so programs linked by the interrupted preparation receive their first use. The first-use queue accepts the signal as its second argument. Already submitted GPU work may finish.
+
+Use `disposeMeshRoots(roots, sharedGeometries)` from `rendering/dispose-meshes.js` to detach a private subtree and dispose its geometry, piece batches and instance buffers. List borrowed geometries in a Set or WeakSet. Materials remain owned by the application.
+
 ## Contributing and license
 
 See the [contributor guide](CONTRIBUTING.md) for local checks and release instructions. Use [GitHub Issues](https://github.com/enestaylan/roamwright/issues) for bugs and feature requests, or [report a vulnerability privately](https://github.com/enestaylan/roamwright/security/advisories/new).

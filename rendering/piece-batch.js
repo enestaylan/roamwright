@@ -77,6 +77,7 @@ export function createPieceBatch({ renderer, camera, markStill = () => {}, isSti
     // vertices, indices: how many to make room for at first (a batch that is filled once says exactly how many); fit: LOOSE or TIGHT
     constructor(material, vertices = 0, indices = 0, fit = LOOSE) {
       super(new THREE.BufferGeometry(), material);
+      this.isPieceBatch = true;
       this.room = { vertices, indices };
       this.fit = fit;
       this.held = { vertices: 0, indices: 0 }; // what the buffers have room for

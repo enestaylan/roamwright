@@ -40,6 +40,15 @@ try {
   await Promise.all([all, warm.compiledInTurn(box), warm.warmShadowPass(scene), warm.warmPostPasses()]);
   if (renderer.getRenderTarget() !== previous || warm.compilingNow() || box.material !== material)
     throw Error('temporary render state leaked');
+  const controller = new AbortController(), compile = renderer.compile.bind(renderer);
+  let submitted = 0;
+  renderer.compile = (...args) => { submitted++; return compile(...args); };
+  const partial = warm.compiledInTurn(scene, camera, scene, previous, controller.signal);
+  controller.abort();
+  try { await partial; throw Error('cancelled warmup resolved'); }
+  catch (error) { if (error !== controller.signal.reason) throw error; }
+  renderer.compile = compile;
+  if (submitted !== 1 || renderer.getRenderTarget() !== previous) throw Error('submitted after withdrawal');
   const abandoned = new THREE.MeshBasicMaterial();
   const removed = warm.compiled(new THREE.Mesh(geometry, abandoned), camera, scene);
   abandoned.dispose();
