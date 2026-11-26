@@ -190,20 +190,5 @@ export function createNarrowFraming({
   };
 }
 
-/**
- * Samples a camera's keys at time t: keys are [seconds, x, y, z, lookX, lookY, lookZ, cut, lens], a key flagged as a cut held
- * until its time and then jumped to. Writes { src, dst, u } into `out` (u smoothstepped between src and dst).
- */
-export function cameraKeyAt(keys, t, out) {
-  let i = 0;
-  while (i < keys.length - 2 && keys[i + 1][0] <= t) i++;
-  const currentKey = keys[i],
-    nextKey = keys[i + 1],
-    cutNext = !!nextKey[7];
-  let u = cutNext ? 0 : clamp((t - currentKey[0]) / (nextKey[0] - currentKey[0]), 0, 1);
-  u = u * u * (3 - 2 * u);
-  out.src = cutNext && t >= nextKey[0] ? nextKey : currentKey;
-  out.dst = cutNext ? out.src : nextKey;
-  out.u = u;
-  return out;
-}
+// Existing imports of the key selector continue to resolve here.
+export { cameraKeyAt } from './camera-track.js';

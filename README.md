@@ -81,6 +81,7 @@ Import modules by path, for example `roamwright/geometry/builder.js`. Browse the
 | Static geometry assembly | `geometry/builder-frame.js`, `geometry/builder-cells.js` |
 | Rendering | `rendering/context.js`, `rendering/sky.js`, `rendering/water-material.js` |
 | Movement | `motion/player.js`, `motion/biped-stride.js` |
+| Scene playback | `runtime/cue-cursor.js`, `rendering/camera-track.js` |
 | Background jobs | `runtime/pool.js`, `runtime/worker.js`, `runtime/grid-rows.js` |
 
 ## Contributing and license

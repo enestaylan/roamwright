@@ -5,12 +5,24 @@ import { rectangleCorners, rectanglesOverlap } from 'roamwright/math/rectangles.
 import { cutBuilderCells } from 'roamwright/geometry/builder-cells.js';
 import { createBuilderFrame } from 'roamwright/geometry/builder-frame.js';
 import { fillRowBands } from 'roamwright/runtime/grid-rows.js';
-import { BufferGeometry } from 'three';
+import { BufferGeometry, Vector3 } from 'three';
+import { CueCursor } from 'roamwright/runtime/cue-cursor.js';
+import { createCameraTrackSampler } from 'roamwright/rendering/camera-track.js';
 import { GeometryBuilder } from 'roamwright';
 import { geometryOf } from 'roamwright/geometry/builder.js';
 import { createScatterGrid } from 'roamwright/geometry/scatter-grid.js';
 import { buildEar } from 'roamwright/geometry/ear.js';
 import { headFn } from 'roamwright/geometry/head-shape.js';
+
+const cursor = new CueCursor();
+const stop = [1, 'open canopy'];
+cursor.advance([stop], 1, cue => assert.equal(cue, stop));
+assert.equal(cursor.nextIndex, 1);
+const eye = new Vector3(), aim = new Vector3();
+const sampler = createCameraTrackSampler();
+sampler([[0, 1, 2, 3, 5, 6, 7]], 0, new Vector3(10, 0, 0), eye, aim);
+assert.deepEqual(eye.toArray(), [11, 2, 3]);
+assert.deepEqual(aim.toArray(), [15, 6, 7]);
 
 const blocks = new GeometryBuilder();
 blocks.M = createBuilderFrame().matrix;
