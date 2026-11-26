@@ -15,6 +15,7 @@ import {createShaderWarmup} from '../rendering/shader-warmup.js';
 const result=document.querySelector('#result');
 try {
   const check = (condition, reason) => { if (!condition) throw Error(reason); };
+  const nativeLights = T.ShaderChunk.lights_fragment_begin;
   installLocalLightCulling();
   installFarShadowShader({nearDepth:49,farDepth:99});
   const renderer = new T.WebGLRenderer();
@@ -55,6 +56,28 @@ try {
     renderer.readRenderTargetPixels(target,0,0,96,96,image);
     return image;
   }
+  const spot = new T.SpotLight(0xff9933, 18, 4, Math.PI / 4, .3);
+  spot.position.set(2, 3, 1);
+  scene.add(spot, spot.target);
+  const nativeSurface = surface.clone();
+  nativeSurface.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>', nativeLights);
+  };
+  const receivers = [floor, block, moving, instances];
+  for (const [reach, intensity] of [[0, 30], [3.5, 30], [.1, 30], [4, 0]]) {
+    point.distance = spot.distance = reach;
+    point.intensity = spot.intensity = intensity;
+    for (const mesh of receivers) mesh.material = nativeSurface;
+    const expected = pixels();
+    for (const mesh of receivers) mesh.material = surface;
+    const actual = pixels();
+    check(actual.every((value, i) => value === expected[i]), 'Culled local lighting changed pixels');
+  }
+  scene.remove(spot, spot.target);
+  spot.dispose();
+  nativeSurface.dispose();
+  point.distance = 0;
+  point.intensity = 30;
   pixels();
   const original=pixels(), calls=renderer.info.render.calls;
   check(original.some((v,i)=>i%4!==3 && v>30),'empty scene');

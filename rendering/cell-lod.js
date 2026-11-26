@@ -14,28 +14,32 @@ import * as THREE from 'three';
  *
  * @param {object} [options]
  * @param {number} [options.square=500] Metres: far copies are batched by kind within squares of this side.
+ * @param {boolean} [options.compact=false] Pack only visible transforms and colours when a cell changes.
+ * Use for static cells whose materials depend on their transform and colour, not their instance index or other instance attributes.
  * @param {number} [options.tableWidth=64] Texels across the table of what each cell shows.
  * @param {number} [options.thinFrom=0.45] Beyond this share of the drawing distance a thinned cell keeps `thinTo` of its instances.
  * @param {number} [options.thinTo=0.55]
  */
-export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, thinTo = 0.55 } = {}) {
+export function createCellLod({ square = 500, compact = false, tableWidth = 64, thinFrom = 0.45, thinTo = 0.55 } = {}) {
   const table = { data: null, tex: null },
     shown = { value: null }, // the table, as the uniform the far materials and the far shadow body share
-    batches = [];
-  let batchShows = null,
-    depth = null, distanceMaterial = null;
+    batches = [],
+    members = [];
+  let drawEnds = null,
+    dirty = null,
+    depth = null,
+    distanceMaterial = null;
 
   // Hides, in the vertex shader, a copy whose cell is not showing its far copy or that lies past the cell's `count`.
   function hideUnshown(sh) {
     sh.uniforms.uFarShown = shown;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 aFar; uniform sampler2D uFarShown;')
-      .replace(
-        '#include <project_vertex>',
-        `/* glsl */
-#include <project_vertex>
-        if (aFar.y >= texelFetch(uFarShown, ivec2(int(aFar.x) % ${tableWidth}, int(aFar.x) / ${tableWidth}), 0).r) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`,
-      );
+      .replace(/void\s+main\s*\(\s*(?:void)?\s*\)\s*\{/, match => `${match}
+        if (aFar.y >= texelFetch(uFarShown, ivec2(int(aFar.x) % ${tableWidth}, int(aFar.x) / ${tableWidth}), 0).r) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          return;
+        }`);
   }
   // A far copy's material: the cell's own, cloned once per material, with its own patch kept and the hiding added.
   function farMaterial(base, cache) {
@@ -55,8 +59,10 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
   function depthMaterial() {
     if (depth) return depth;
     depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-    depth.onBeforeCompile = hideUnshown;
-    depth.customProgramCacheKey = () => 'far-batch-depth';
+    if (!compact) {
+      depth.onBeforeCompile = hideUnshown;
+      depth.customProgramCacheKey = () => 'far-batch-depth';
+    }
     return depth;
   }
 
@@ -66,9 +72,11 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
       groups = new Map(),
       materials = new Map();
     table.data = new Float32Array(tableWidth * Math.ceil(cells.length / tableWidth));
-    table.tex = new THREE.DataTexture(table.data, tableWidth, table.data.length / tableWidth, THREE.RedFormat, THREE.FloatType);
-    table.tex.needsUpdate = true;
-    shown.value = table.tex;
+    if (!compact) {
+      table.tex = new THREE.DataTexture(table.data, tableWidth, table.data.length / tableWidth, THREE.RedFormat, THREE.FloatType);
+      table.tex.needsUpdate = true;
+      shown.value = table.tex;
+    }
     cells.forEach((t, slot) => {
       const lo = t.lo,
         key = [
@@ -89,29 +97,38 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
       lo.removeFromParent();
     });
     for (const { lo, casts, cells: list } of groups.values()) {
-      for (const t of list) t.farBatch = batches.length;
       const n = list.reduce((s, t) => s + t.farN, 0),
         geo = new THREE.BufferGeometry();
       for (const name in lo.geometry.attributes) geo.setAttribute(name, lo.geometry.attributes[name]);
       geo.setIndex(lo.geometry.index);
       geo.boundingSphere = lo.geometry.boundingSphere;
       geo.boundingBox = lo.geometry.boundingBox;
-      const ids = new Float32Array(n * 2),
-        mesh = new THREE.InstancedMesh(geo, farMaterial(lo.material, materials), n);
+      const ids = compact ? null : new Float32Array(n * 2),
+        mesh = new THREE.InstancedMesh(geo, compact ? lo.material : farMaterial(lo.material, materials), n);
       if (lo.instanceColor) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
       let at = 0;
       for (const t of list) {
+        t.farBatch = batches.length;
+        t.farStart = at;
+        if (t.lod) t.lod.batch = t.farBatch;
         const src = t.mesh.instanceMatrix.array,
           col = t.mesh.instanceColor?.array;
         mesh.instanceMatrix.array.set(src.subarray(0, t.farN * 16), at * 16);
         if (col && mesh.instanceColor) mesh.instanceColor.array.set(col.subarray(0, t.farN * 3), at * 3);
-        for (let i = 0; i < t.farN; i++) {
-          ids[(at + i) * 2] = t.far;
-          ids[(at + i) * 2 + 1] = i;
+        if (ids) {
+          for (let i = 0; i < t.farN; i++) {
+            ids[(at + i) * 2] = t.far;
+            ids[(at + i) * 2 + 1] = i;
+          }
         }
         at += t.farN;
       }
-      geo.setAttribute('aFar', new THREE.InstancedBufferAttribute(ids, 2));
+      if (ids) geo.setAttribute('aFar', new THREE.InstancedBufferAttribute(ids, 2));
+      if (compact) {
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.instanceColor?.setUsage(THREE.DynamicDrawUsage);
+        members.push(list);
+      }
       mesh.layers.mask = lo.layers.mask;
       mesh.receiveShadow = lo.receiveShadow;
       mesh.castShadow = casts; // as the near copies do
@@ -119,8 +136,10 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
         mesh.customDepthMaterial = depthMaterial();
         if (!distanceMaterial) {
           distanceMaterial = new THREE.MeshDistanceMaterial();
-          distanceMaterial.onBeforeCompile = hideUnshown;
-          distanceMaterial.customProgramCacheKey = () => 'far-batch-distance';
+          if (!compact) {
+            distanceMaterial.onBeforeCompile = hideUnshown;
+            distanceMaterial.customProgramCacheKey = () => 'far-batch-distance';
+          }
         }
         mesh.customDistanceMaterial = distanceMaterial;
         mesh.userData.partShown = true; // a pass drawing heights with a plain depth material would show every copy
@@ -130,8 +149,35 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
       parent.add(mesh);
       batches.push(mesh);
     }
-    batchShows = new Int32Array(batches.length);
+    drawEnds = new Int32Array(batches.length);
+    if (compact) dirty = new Uint8Array(batches.length).fill(1);
     return batches;
+  }
+
+  // Near cells own the immutable source records. Keep their order so overlapping
+  // surfaces and transparent instances blend exactly as in the original batch.
+  function packVisible(batchIndex) {
+    const mesh = batches[batchIndex];
+    let end = 0;
+    for (const cell of members[batchIndex]) {
+      const n = Math.min(table.data[cell.far], cell.farN);
+      if (!n) continue;
+      mesh.instanceMatrix.array.set(cell.mesh.instanceMatrix.array.subarray(0, n * 16), end * 16);
+      if (mesh.instanceColor) {
+        const colour = cell.mesh.instanceColor;
+        if (colour) mesh.instanceColor.array.set(colour.array.subarray(0, n * 3), end * 3);
+        else mesh.instanceColor.array.fill(0, end * 3, (end + n) * 3);
+      }
+      end += n;
+    }
+    mesh.count = end;
+    if (!end) return;
+    for (const attribute of [mesh.instanceMatrix, mesh.instanceColor]) {
+      if (!attribute) continue;
+      attribute.clearUpdateRanges();
+      attribute.addUpdateRange(0, end * attribute.itemSize);
+      attribute.needsUpdate = true;
+    }
   }
 
   // Where a cell lies and how far it is drawn, kept on it in a record of one shape: cells come from builders of many shapes,
@@ -147,7 +193,7 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
    */
   function update(cells, cx, cz, distance, detail, density, cy, rangeScale = 1) {
     let changed = false;
-    if (batchShows) batchShows.fill(0);
+    if (drawEnds) drawEnds.fill(0);
     for (let i = 0; i < cells.length; i++) {
       const t = cells[i],
         at = lodOf(t),
@@ -169,15 +215,25 @@ export function createCellLod({ square = 500, tableWidth = 64, thinFrom = 0.45, 
       }
       if (t.far !== undefined) {
         const v = vis && !hi ? count : 0;
-        if (v > 0) batchShows[at.batch]++;
+        // A single draw preserves gl_InstanceID and the order of overlapping instances.
+        // Omit its invisible tail; the shader clips gaps before doing any vertex work.
+        if (v > 0) drawEnds[at.batch] = Math.max(drawEnds[at.batch], t.farStart + Math.min(t.farN, v));
         if (table.data[t.far] !== v) {
           table.data[t.far] = v;
+          if (compact) dirty[at.batch] = 1;
           changed = true;
         }
       }
     }
-    if (changed) table.tex.needsUpdate = true;
-    for (let i = 0; i < batches.length; i++) batches[i].visible = batchShows[i] > 0;
+    if (changed && table.tex) table.tex.needsUpdate = true;
+    for (let i = 0; i < batches.length; i++) {
+      if (!compact) batches[i].count = drawEnds[i];
+      else if (dirty[i]) {
+        packVisible(i);
+        dirty[i] = 0;
+      }
+      batches[i].visible = drawEnds[i] > 0;
+    }
   }
 
   return { batch, update, batches };

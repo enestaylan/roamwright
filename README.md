@@ -104,7 +104,7 @@ Pass a `revisions` object mapping grid names to input-version strings to `create
 
 Pass an optional world-space `initialPosition` to `terrainChunks` to create the terrain at its first viewing distance. Subsequent updates follow the camera.
 
-For elevated viewpoints, pass the eye height and an optional positive distance scale as the last arguments to `createCellLod().update(cells, x, z, distance, detail, density, y, scale)`. Set `cy` on each cell to its centre elevation. Detail follows the eye in three dimensions while visibility follows ground distance.
+For elevated viewpoints, pass the eye height and an optional positive distance scale as the last arguments to `createCellLod().update(cells, x, z, distance, detail, density, y, scale)`. Set `cy` on each cell to its centre elevation. Detail follows the eye in three dimensions while visibility follows ground distance. For immutable trees or other scatter whose shaders use only instance transforms and colours, `createCellLod({ compact: true })` submits only visible far instances in their original order. Materials that use `gl_InstanceID` or custom per-instance attributes should use the default mode, which keeps their slots stable.
 
 For geometry generated off the main thread, call `builder.parts(true)` in the worker and `geometryOf(parts)` on the page.
 

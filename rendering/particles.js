@@ -91,7 +91,7 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
     g.setAttribute('aData', dat);
     g.setAttribute('aCol', col);
     g.setAttribute('aSeed', sed);
-    g.instanceCount = cap;
+    g.instanceCount = 0;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7);
     const mat = new THREE.ShaderMaterial({
       transparent: true,
@@ -222,6 +222,8 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
       cap,
       add: additive,
       head: 0,
+      cycleEnd: -Infinity,
+      previousCycleEnd: -Infinity,
       pos: pos.array,
       vel: vel.array,
       dat: dat.array,
@@ -260,6 +262,12 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
     const time = elapsed();
     s.dat[i4] = time;
     s.dat[i4 + 1] = p.life;
+    // Use the birth and lifetime the shader receives, including float32 rounding.
+    s.cycleEnd = Math.max(s.cycleEnd, s.dat[i4] + s.dat[i4 + 1]);
+    if (s.head === 0) {
+      s.previousCycleEnd = s.cycleEnd;
+      s.cycleEnd = -Infinity;
+    }
     if (time + p.life > s.until) s.until = time + p.life;
     s.dat[i4 + 2] = p.size;
     s.dat[i4 + 3] = p.grav;
@@ -280,6 +288,9 @@ export function createParticleSystem({ scene, pointScale, sceneDepth, elapsed, n
   // Uploads the parts of a particle system's buffers that changed this frame, and draws the system only while a particle lives.
   function pFlush(s) {
     s.pts.visible = elapsed() < s.until;
+    // All slots at or beyond the write head are from the previous lap of the ring.
+    // Keep their original blend order until even its longest-lived particle has expired.
+    s.pts.geometry.instanceCount = Math.fround(fxU.uTime.value) <= s.previousCycleEnd ? s.cap : s.head;
     if (!s.dirty) return;
     for (let k = 0; k < s.attrs.length; k++) {
       const a = s.attrs[k];

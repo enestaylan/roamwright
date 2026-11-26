@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Far instance visibility</title>
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js"}}</script>
+<pre id="result">Running</pre>
+<script type="module">
+import * as T from 'three';
+import { createCellLod } from '../rendering/cell-lod.js';
+
+try {
+  const renderer = new T.WebGLRenderer({antialias: false});
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFShadowMap;
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(40, 1, 0.1, 50);
+  camera.position.set(0, 3, 8);
+  camera.lookAt(0, 0, 0);
+  const box = new T.BoxGeometry(0.8, 1.25, 0.6);
+  const material = new T.MeshStandardMaterial({color: 0xffffff});
+  const floor = new T.Mesh(new T.BoxGeometry(12, 0.1, 8), material);
+  floor.position.y = -0.7;
+  floor.receiveShadow = true;
+  const sun = new T.DirectionalLight(0xffffff, 2);
+  sun.position.set(2, 4, 2);
+  sun.castShadow = true;
+  scene.add(floor, sun, new T.AmbientLight(0xffffff, 0.4));
+  const target = new T.WebGLRenderTarget(96, 96);
+  renderer.setRenderTarget(target);
+  function build(compact) {
+    const lod = createCellLod({square: 500, compact});
+    const group = new T.Group(), cells = [];
+    scene.add(group);
+    for (let i = 0; i < 4; i++) {
+      const mesh = new T.InstancedMesh(box, material, 4);
+      const lo = new T.InstancedMesh(box, material, 4);
+      for (let j = 0; j < 4; j++) {
+        const matrix = new T.Matrix4().makeTranslation(i - 1.5, 0, (j - 2) * 0.85);
+        mesh.setMatrixAt(j, matrix);
+        mesh.setColorAt(j, new T.Color(0.1 + 0.2 * i, 0.1 + 0.2 * j, 0.4));
+      }
+      lo.instanceMatrix = mesh.instanceMatrix;
+      lo.instanceColor = mesh.instanceColor;
+      mesh.castShadow = lo.castShadow = true;
+      // Draw far copies alone. Visible gaps and changes in density exercise stable slot order.
+      cells.push({mesh, lo, cx: 60 + i * 40, cz: 0, r: 0, full: 4});
+    }
+    lod.batch(cells, group);
+    return {lod, group, cells};
+  }
+  const masked = build(false), packed = build(true);
+  const pixels = () => {
+    renderer.render(scene, camera);
+    const bytes = new Uint8Array(96 * 96 * 4);
+    renderer.readRenderTargetPixels(target, 0, 0, 96, 96, bytes);
+    return bytes;
+  };
+  let reduced = false;
+  for (const x of [210, 75, 120, 800, 30, 150]) {
+    for (const {lod, cells} of [masked, packed]) lod.update(cells, x, 0, 125, 35, 1);
+    masked.group.visible = true;
+    packed.group.visible = false;
+    const reference = pixels();
+    masked.group.visible = false;
+    packed.group.visible = true;
+    const actual = pixels();
+    if (!actual.every((v, i) => v === reference[i])) throw Error('Colour or shadow changed at ' + x);
+    reduced ||= packed.lod.batches[0].count < masked.lod.batches[0].count;
+  }
+  if (!reduced || renderer.getContext().getError()) throw Error('No instance reduction or invalid WebGL state');
+  renderer.dispose();
+  document.querySelector('#result').textContent = 'PASS stable far colours and shadow silhouettes over six visibility transitions';
+} catch (error) { document.querySelector('#result').textContent = 'FAIL ' + error.stack; }
+</script>

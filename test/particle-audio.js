@@ -17,11 +17,13 @@ export async function run(canvas) {
       sceneDepth: { uDepth: { value: null }, uDepthPx: { value: new THREE.Vector2(1, 1) }, uSoft: { value: 0 } },
       random: () => 0.25,
     });
+    const pools = [];
     for (const additive of [false, true]) {
       const pool = particles.makeParticles(4, additive);
       Object.assign(particles.spawn, { x: additive ? 0.1 : -0.1, r: 0.9, g: 0.6, b: 0.4, life: 2, size: 0.6 });
       particles.pSpawn(pool);
       particles.pFlush(pool);
+      pools.push(pool);
     }
     time = particles.fxU.uTime.value = 0.5;
     particles.fxU.uSunC.value.setRGB(1, 1, 1);
@@ -33,6 +35,26 @@ export async function run(canvas) {
     renderer.readRenderTargetPixels(target, 0, 0, 96, 96, pixels);
     if (renderer.info.render.calls !== 2 || !pixels.some((x, i) => i % 4 !== 3 && x > 0) || renderer.getContext().getError()) {
       throw new Error('Expected two visible particle draws');
+    }
+    if (pools.some(pool => pool.pts.geometry.instanceCount !== 1)) throw Error('Unused slots were submitted');
+    for (const pool of pools) pool.pts.geometry.instanceCount = pool.cap;
+    renderer.render(scene, camera);
+    const reference = new Uint8Array(pixels.length);
+    renderer.readRenderTargetPixels(target, 0, 0, 96, 96, reference);
+    if (!pixels.every((value, i) => value === reference[i])) throw Error('Clipping unused slots changed particles');
+    for (const pool of pools) {
+      // Fill the ring and start a new lap with a particle that outlives the old lap.
+      particles.spawn.life = 1;
+      for (let i = 1; i < pool.cap; i++) particles.pSpawn(pool);
+      particles.spawn.life = 5;
+      particles.pSpawn(pool);
+      particles.pFlush(pool);
+      if (pool.pts.geometry.instanceCount !== pool.cap) throw Error('Live particles lost at wrap');
+    }
+    time = particles.fxU.uTime.value = 2.5;
+    for (const pool of pools) {
+      particles.pFlush(pool);
+      if (!pool.pts.visible || pool.pts.geometry.instanceCount !== 1) throw Error('Expired tail still submitted');
     }
     target.dispose();
     texture.dispose();

@@ -233,6 +233,12 @@ test('cells show their near mesh near, their batched far copy far, and nothing p
   assert.equal(cells[1].mesh.count, 4);
   lod.update(cells, 0, 0, 500, 100, 1);
   assert.equal(cells[1].mesh.count, 2, 'thinned past 45% of the distance');
+  assert.equal(lod.batches[0].count, 6, 'four hidden slots before two visible far instances');
+  lod.update(cells, 300, 0, 500, 100, 1);
+  assert.equal(lod.batches[0].count, 2, 'hidden final cell does not reach the GPU');
+  assert.equal(lod.batches[1].count, 0);
+  lod.update(cells, 0, 0, 1000, 100, 1);
+  assert.equal(lod.batches[0].count, 8, 'the original four slots return when in range');
 });
 
 test('cell detail can follow altitude while its visibility range stays horizontal', () => {

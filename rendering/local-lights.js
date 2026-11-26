@@ -16,12 +16,23 @@ export function installLocalLightCulling(chunks = ShaderChunk) {
     return [start, end];
   }
   let text = chunks.lights_fragment_begin;
-  for (const [from, to] of [
-    ['#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )'],
-    ['#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )', '#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct )'],
+  for (const [from, to, light, info] of [
+    ['#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )', 'pointLight', 'getPointLightInfo'],
+    ['#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )', '#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct )', 'spotLight', 'getSpotLightInfo'],
   ]) {
     const [start, end] = loopOf(text, from, to);
-    text = text.slice(0, start) + text.slice(start, end).replace(CALL, 'if ( directLight.visible ) ' + CALL) + text.slice(end);
+    const lookup = `${info}( ${light}, geometryPosition, directLight );`;
+    const loop = text.slice(start, end);
+    if (!loop.includes(lookup)) throw new Error('local-lights: Three.js light lookup not as expected');
+    // Attenuation is zero beyond a finite cutoff. Keep cookie sampling outside this
+    // branch so texture derivatives at the edge of a spotlight have their usual values.
+    const culled = `if ( ${light}.color == vec3( 0.0 ) || ( ${light}.distance > 0.0 &&
+      distance( ${light}.position, geometryPosition ) > ${light}.distance ) ) {
+        directLight.color = vec3( 0.0 );
+        directLight.visible = false;
+        directLight.direction = vec3( 0.0 );
+      } else { ${lookup} }`;
+    text = text.slice(0, start) + loop.replace(lookup, culled).replace(CALL, 'if ( directLight.visible ) ' + CALL) + text.slice(end);
   }
   if (!text.includes(SHADOW_READ)) throw new Error('local-lights: Three.js point shadow not as expected');
   chunks.lights_fragment_begin = text.replace(SHADOW_READ, SHADOW_TURNED);
