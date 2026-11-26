@@ -1,7 +1,17 @@
+/**
+ * Stateful foot placement and leg poses for bipeds moving over sampled ground.
+ * @module
+ */
+
 import { TAU, clamp, lerp, sstep } from '../math/scalar.js';
 import { ankleOffset, solePitch, solveBipedLeg } from './biped-leg.js';
 
-/** Create one stride solver for a rig, ground sampler and motion profile. */
+/**
+ * Create a stride solver for a rig and motion profile. The ground callback takes
+ * world X/Z coordinates and returns the surface height. Pass elapsed seconds to
+ * the solver on each update. It stores foot contacts on the actor and reuses the
+ * returned pose, so copy any values needed after the next call.
+ */
 export function createBipedStride({ rig, foot, pace, ground }) {
   const reach = rig.thigh + rig.shin - 0.0005;
   const _leg = [0, 0],

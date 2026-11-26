@@ -1,5 +1,9 @@
-// Count displayed frames in consecutive, non-overlapping windows. Report a slow
-// episode once and rearm after a healthy window. Reset across pauses or view changes.
+/**
+ * Track consecutive slow windows using displayed frame intervals in milliseconds.
+ * For each frame call `sample(frameMs)`. After the requested number of slow
+ * windows, `onSlow(averageFps, elapsedMs)` fires once. A healthy window rearms
+ * the monitor. Call `reset()` when pausing or changing views.
+ */
 export function createFramePacingMonitor({ minimumFps, windowMs = 1000, windows = 3, onSlow }) {
   if (!(Number.isFinite(minimumFps) && minimumFps > 0 && Number.isFinite(windowMs) && windowMs > 0 &&
         Number.isInteger(windows) && windows > 0 && typeof onSlow === 'function')) throw new RangeError('Invalid frame pacing options');

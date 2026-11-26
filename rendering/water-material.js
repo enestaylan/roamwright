@@ -1,9 +1,19 @@
+/**
+ * Shader materials and vertex attributes for open water and flowing streams.
+ * @module
+ */
+
 import * as THREE from 'three';
 import { FOAM_GLSL, SEA_BODY, SEA_OPACITY, SEA_WAVES } from './sea-shaders.js';
 import { RAIN_GLSL, RAIN_PARS } from './rain-rings.js';
 import { STREAM_FLOW_GLSL } from './stream-flow.js';
 import { DEEP, FAR } from '../geometry/stream.js';
 
+/**
+ * Create the open-water material (`waterMat`) and the ribbon material for rivers (`streamMat`).
+ * Supply the depth-map transform, still-water elevation, sea parameters and wake shader inputs.
+ * The optional cloud shader supplies a shadow factor at a world-space X/Z position.
+ */
 export function createWaterMaterials({ depthRect, level, seaParameters, wakes, cloudShader = 'float cloudShade(vec2 p) { return 1.0; }', cloudUniforms = {} }) {
   const { WAKE_GLSL, WAKE_PARS, wakeUniforms } = wakes;
   const waterMat = new THREE.ShaderMaterial({
@@ -216,6 +226,7 @@ function waterVariant(material) {
   return m;
 }
 
+/** Create a variant with its own linear RGB tint. Lighting, wave and wake uniforms stay linked to the original. */
 export function tintedWater(material, tint) {
   const m = waterVariant(material);
   m.uniforms.uTint = { value: new THREE.Color(...tint) };

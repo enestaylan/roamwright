@@ -1,5 +1,10 @@
-// Coordinate early, whole-scene and incremental program warmup. The application supplies its pass
-// graph and decides how newly linked programs enter the renderer's first-use queue.
+/**
+ * Coordinate shader compilation and first use across an application's render passes.
+ * During loading, await `warmShaders(roots, { blocking: true })` to pass the blocking
+ * flag to `beginCompiles` and submit shader programs together. During play, omit
+ * the flag to follow the application's incremental schedule. The roots can be one
+ * subtree or several disjoint subtrees that share a lighting environment.
+ */
 export function createCompilationSchedule({renderer, scene, beginCompiles, putToUse, useProgram, timeoutMs = 20000, onError = () => {}}) {
   let warmed = false;
   const interrupted = new WeakMap();

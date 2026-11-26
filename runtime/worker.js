@@ -1,3 +1,8 @@
+/**
+ * Handle named jobs on the worker side of the Roamwright pool protocol.
+ * @module
+ */
+
 // Transfer backing stores once, including when several views share a buffer.
 function transferList(result) {
   const buffers = new Set();
@@ -21,6 +26,8 @@ function transferList(result) {
  * Bind a pool worker to a message port. Jobs receive the input carried in the
  * request. A loader returns a module exposing a jobs object, which may supply
  * several handlers at once. Requests, including asynchronous work, finish FIFO.
+ * ArrayBuffers in a successful result transfer to the caller. A handler that
+ * needs its own copy must keep a separate buffer before returning the result.
  */
 export function attachWorker({ port, jobs = {}, loaders = {} }) {
   const handlers = new Map(Object.entries(jobs));

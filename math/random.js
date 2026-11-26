@@ -1,5 +1,13 @@
-// A small seeded random generator: the same seed gives the same world every time. Its `state()` is where the stream stands:
-// mulberry32(state) goes on from there, as a stream handed to a worker of the pool does.
+/**
+ * Repeatable random streams and coordinate hashes for procedural placement.
+ * @module
+ */
+
+/**
+ * Create a repeatable stream of numbers in [0, 1). Save `next.state()` and pass
+ * it to a new generator to resume at the next draw, including in a worker.
+ * @param {number} a - Integer seed or a previously saved generator state.
+ */
 function mulberry32(a) {
   const next = function () {
     a |= 0;
@@ -15,6 +23,7 @@ function mulberry32(a) {
 const pickR = (R, a) => a[(R() * a.length) | 0];
 export { mulberry32, pickR };
 
+/** Return a repeatable hash in [0, 1) for integer X/Z grid coordinates and a per-sample seed. */
 export function createHash(worldSeed = 0) {
   // A random number in 0..1 fixed by two integers and a seed.
   function hash2(ix, iz, seed) {

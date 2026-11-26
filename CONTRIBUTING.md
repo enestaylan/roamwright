@@ -23,7 +23,9 @@ npm run test:package
 
 CI runs the first three checks with Three.js 0.170.0 and 0.187.0. To try the older peer locally, run `npm install --no-save --package-lock=false three@0.170.0` and repeat the checks. Run `npm ci` to restore the locked dependencies.
 
-After both compatibility jobs pass on `main`, the same workflow deploys the [live examples](https://enestaylan.github.io/roamwright/) from this repository. The site serves the locked Three.js build alongside the example modules.
+Run `npm run docs` to generate the API reference in `build/docs/`. Preview it with `python3 -m http.server --directory build/docs`. TypeDoc reads the public JavaScript modules and their source comments. Document caller-visible behavior, units and return values next to the declarations.
+
+After both compatibility jobs pass on `main`, the same workflow generates and deploys the [API reference](https://enestaylan.github.io/roamwright/docs/) alongside the [live examples](https://enestaylan.github.io/roamwright/) from this repository. The site serves the locked Three.js build alongside the example modules.
 
 ## Prepare a pull request
 

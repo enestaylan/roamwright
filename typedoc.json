@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Roamwright API",
+  "entryPoints": ["index.js", "geometry/*.js", "math/*.js", "motion/*.js", "rendering/*.js", "runtime/*.js"],
+  "compilerOptions": {
+    "allowJs": true,
+    "strictNullChecks": true,
+    "target": "ES2022",
+    "module": "NodeNext"
+  },
+  "intentionallyNotExported": ["rendering/piece-batch.js:PieceBatch"],
+  "commentStyle": "all",
+  "disableGit": true,
+  "gitRevision": "main",
+  "basePath": ".",
+  "sourceLinkTemplate": "https://github.com/enestaylan/roamwright/blob/{gitRevision}/{path}#L{line}",
+  "readme": "docs/api.md",
+  "navigationLinks": { "Examples": "https://enestaylan.github.io/roamwright/", "GitHub": "https://github.com/enestaylan/roamwright" },
+  "out": "build/docs"
+}

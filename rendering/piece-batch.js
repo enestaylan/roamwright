@@ -56,6 +56,16 @@ class Runs {
  * context. Shadow hooks optionally integrate a cache of static point shadows.
  * Supply static triangle geometry with matching layouts and indexing to each
  * batch. Attributes use contiguous Float32Array, Int8Array or Uint8Array data.
+ * @returns A mesh constructor. Create one instance per batch material.
+ * @example
+ * ```js
+ * const Batch = createPieceBatch({ renderer, camera });
+ * const batch = new Batch(material);
+ * scene.add(batch);
+ * const id = batch.add(geometry);
+ * batch.setView(id, batch.materialView(highlightMaterial));
+ * batch.setView(id);
+ * ```
  */
 export function createPieceBatch({ renderer, camera, markStill = () => {}, isStill = () => false, keptAway = () => false }) {
   const _clip = new THREE.Matrix4(),

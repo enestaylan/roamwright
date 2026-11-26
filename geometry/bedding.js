@@ -28,6 +28,7 @@ const TICK = [
   [0, 1],
 ];
 
+/** Append a seamed cushion above its base centre. Dimensions are in metres, yaw is in radians and tone is linear RGB. */
 function linenCase(cloth, x, y, z, width, height, length, tone, yaw = 0, profile = PILLOW) {
   const pillow = profile === PILLOW,
     rows = [],
@@ -56,7 +57,11 @@ function linenCase(cloth, x, y, z, width, height, length, tone, yaw = 0, profile
   creasedSheet(cloth, rows, colors, { wrap: true, inside: true });
 }
 
-// Dimensions and colours are supplied by the room. y is the dressed bed's top in metres.
+/**
+ * Append a mattress, cover and pillows to a geometry builder. The centre (x, y, z)
+ * is the top of the mattress. The mattress extends down by `tick` and the cover
+ * hangs by `drop`. Dimensions are in metres, colours are linear RGB and yaw is in radians.
+ */
 function bedLinen(cloth, x, y, z, { width, length, tick, cover, drop, coverTone, linen, ticking, pillows = 1, yaw = 0 }) {
   const cos = Math.cos(yaw),
     sin = Math.sin(yaw),
@@ -111,7 +116,7 @@ function bedLinen(cloth, x, y, z, { width, length, tick, cover, drop, coverTone,
   }
 }
 
-// Silk laced to the side rails. The loose foot valance hangs in shallow swags between the posts.
+/** Append a two-sided cloth canopy between side rails at height y. Width and length are in metres. */
 function bedCanopy(cloth, x, y, z, width, length, silk) {
   const fall = (u, v) => Math.sin(Math.PI * u) * (0.12 * v + Math.sin(Math.PI * v) * (0.15 + 0.018 * Math.cos(4 * Math.PI * v)));
   sampleSurface(cloth, 16, 12, (u, v) => [x + (u - 0.5) * width, y - fall(u, v), (v - 0.5) * length + z], silk, { back: dim(silk, 0.85) });

@@ -1,5 +1,9 @@
-// Share one attempt. An awaited request may pin work already started speculatively.
-// A replacement waits for the withdrawn attempt's cleanup, including a worker already running.
+/**
+ * Share the first input and promise among overlapping requests. Call
+ * `request(input, true)` to pin that attempt. Withdrawing an unpinned attempt
+ * aborts its signal. A subsequent request waits for the old work to settle.
+ * @param work - Receives the first caller’s input and an AbortSignal. The caller owns a successful result.
+ */
 export function createWithdrawableTask(work) {
   let current = null;
   let tail = Promise.resolve();

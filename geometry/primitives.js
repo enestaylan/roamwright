@@ -1,3 +1,8 @@
+/**
+ * Unit meshes, transforms and colour helpers for assembling models with a geometry builder.
+ * @module
+ */
+
 import * as THREE from 'three';
 import { TAU } from '../math/scalar.js';
 import { createNoise } from '../math/noise.js';
@@ -102,6 +107,10 @@ const STONE_JOINTS = [
 ].map(([x, y, z, d]) => [x / Math.hypot(x, y, z), y / Math.hypot(x, y, z), z / Math.hypot(x, y, z), d]); // [the face's normal, its distance from the middle]
 const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
   cyl6 = new THREE.CylinderGeometry(0.5, 0.5, 1, 6).translate(0, 0.5, 0);
+/**
+ * Build a library of reusable unit geometries for scenery, roofs and figures.
+ * @param fbm - Fractal noise sampler used to shape the rock. Pass the world’s seeded sampler to reproduce it.
+ */
 export function createUnitShapes(fbm = createNoise().fbm) {
   function stonePoint(dir, out) {
     let r = 0.5 * (0.8 + 0.4 * fbm(dir.x * 1.7 + 3, dir.z * 1.7 + dir.y * 1.3, 2, 190));

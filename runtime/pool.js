@@ -1,3 +1,8 @@
+/**
+ * Schedule jobs across workers, prepare per-worker data and release idle workers.
+ * @module
+ */
+
 /** The pool can use every logical processor the browser exposes beyond its main thread. */
 export function workerCapacity(cores = globalThis.navigator?.hardwareConcurrency) {
   return Number.isFinite(cores) ? Math.max(1, Math.floor(cores) - 1) : 1;
@@ -9,6 +14,13 @@ export function workerCapacity(cores = globalThis.navigator?.hardwareConcurrency
  * adopt them immediately. Supply startWorkers for a fixed pool, or createWorker
  * for a pool that grows with concurrent work up to maxWorkers. A broadcast
  * initializes every worker, so later jobs see the state it set.
+ * @param {object} [options] - Worker factories and scheduling settings.
+ * @param {() => Worker} [options.createWorker] - Synchronously create one worker when demand grows.
+ * @param {() => Worker[]} [options.startWorkers] - Start the fixed pool on first use.
+ * @param {Worker[]} [options.initialWorkers] - Adopt already running workers.
+ * @param {number} [options.maxWorkers] - Upper bound for an elastic pool.
+ * @param {number} [options.idleMs] - Milliseconds before idle workers terminate.
+ * @param {(message: string) => void} [options.warn] - Receive worker startup and job failure messages.
  */
 export function createPool({
   startWorkers, createWorker, initialWorkers, maxWorkers = workerCapacity(),
@@ -170,6 +182,7 @@ export function createPool({
         slot.holds.add(job);
       }
   }
+  /** Broadcast a job to every worker. Set `activeOnly` to reach existing workers without creating more. */
   function runOnEach(job, input, { activeOnly = false } = {}) {
     if (!activeOnly) {
       if (!awake().length) return noWorkers();

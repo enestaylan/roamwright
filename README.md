@@ -3,11 +3,11 @@
 [![npm version](https://img.shields.io/npm/v/roamwright)](https://www.npmjs.com/package/roamwright)
 [![Compatibility tests](https://github.com/enestaylan/roamwright/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/enestaylan/roamwright/actions/workflows/test.yml)
 
-Roamwright is a procedural worldbuilding engine built on top of Three.js. It gives you reusable systems for turning a 3D scene into a world you can explore. You define the landscape once and use the same terrain to shape riverbanks, place scenery and guide characters over uneven ground. First-person walking and flight, crowd animation, weather and day–night lighting can all be used in your own Three.js scene.
+**Roamwright is a procedural worldbuilding engine for Three.js.** Start with a seed and a height field. Use that same ground to carve a river valley, plant trees along its banks and place the piers of a bridge. Add weather and daylight, give characters routes through the landscape, and explore the world on foot or in flight.
 
 ![A red passenger train on a stone viaduct above a winding alpine river, with conifers on the banks and snow on the peaks](https://raw.githubusercontent.com/enestaylan/roamwright/main/docs/alpine-viaduct.jpg)
 
-**Alpine viaduct.** One height field shapes the riverbed and snowy ridges and determines where the conifers take root. Eight copies of an arch profile form the viaduct. The stonework, rails and overhead wires share one mesh. The four-car electric train moves as a separate mesh. Choose Valley, Trackside or Riverbank and select **Run train** to watch it cross. [Explore the example source](examples/viaduct.js).
+**[Alpine viaduct](https://enestaylan.github.io/roamwright/examples/viaduct.html).** One height field shapes the riverbed and snowy ridges and determines where the conifers take root. Eight copies of an arch profile form the viaduct. The stonework, rails and overhead wires share one mesh. The four-car electric train moves as a separate mesh. Choose Valley, Trackside or Riverbank and select **Run train** to watch it cross. [Explore the example source](examples/viaduct.js).
 
 ## Building an explorable world
 
@@ -27,8 +27,6 @@ npm resolves the Three.js peer in a new project. If you already use Three.js, th
 ## Built with Roamwright
 
 [Malazan](https://enestaylan.com/malazan/) is an explorable world built with Roamwright. Fly over Darujhistan, Pale, and the Rhivi Plain from *Malazan Book of the Fallen*.
-
-The shader compilation schedule accepts a subtree or an array of disjoint subtrees in one lighting environment. During a loading screen, `await warmShaders(roots, {blocking: true})` passes the blocking flag to `beginCompiles(root, warmed, blocking)` so the application can submit the batch in parallel. The default keeps the application’s incremental scheduling during play.
 
 ## Examples
 
@@ -74,7 +72,7 @@ renderer.render(scene, camera);
 
 ## Modules
 
-Import modules by path, for example `roamwright/geometry/builder.js`.
+Import modules by path, for example `roamwright/geometry/builder.js`. Browse the [API reference](https://enestaylan.github.io/roamwright/docs/) for signatures, usage notes and source links.
 
 | Area | Main modules |
 | --- | --- |

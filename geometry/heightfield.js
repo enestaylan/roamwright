@@ -1,5 +1,14 @@
-// Sample the triangles of a regular, axis-aligned X/Z PlaneGeometry in geometry coordinates.
-// The first vertex is the minimum X and Z; the index follows Three.js PlaneGeometry's diagonal.
+/**
+ * Sample and refine regular terrain grids in local X/Z coordinates. Heights follow the triangles used to render the surface.
+ * @module
+ */
+
+/**
+ * Interpolate height on the same triangle that the renderer draws.
+ * @param {import('three').PlaneGeometry} geometry - Regular X/Z grid whose first vertex has the smallest X and Z.
+ * @param {(x: number, z: number) => number} [outside] - Fallback height beyond the grid.
+ * @returns {(x: number, z: number) => (number | undefined)} A sampler in local geometry coordinates. Outside the grid it returns the fallback height, or undefined.
+ */
 export function heightfieldSampler(geometry, outside) {
   const { widthSegments: columns, heightSegments: rows } = geometry.parameters;
   const positions = geometry.getAttribute('position');

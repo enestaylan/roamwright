@@ -1,3 +1,8 @@
+/**
+ * Keep terrain heights, raised decks and collision queries together for each space the player can enter.
+ * @module
+ */
+
 // Keep common cells as small numeric keys. A row outside the packed range uses
 // a separate key so two distant places can never share a collider bucket.
 function cellKey(column, row) {

@@ -1,10 +1,18 @@
+/**
+ * First-person walking and flight over terrain, water and raised surfaces.
+ * @module
+ */
+
 import { clamp } from '../math/scalar.js';
 
 /**
  * A first-person controller for a createSpaces registry. Distances are metres,
  * speeds are metres per second, angles are radians, and update takes seconds.
  * Set input.right, forward and up to signed axes, and run, jump and fly to booleans.
- * Camera application accepts a Three.js camera with YXZ rotation order.
+ * After updating, call `applyCamera(camera)` to copy the eye position and view
+ * angles to a Three.js camera with YXZ rotation order.
+ * @param spatial - Registry returned by `createSpaces`.
+ * @param options - Movement, collision and camera settings, with optional initial player state in `start`.
  */
 export function createPlayer(spatial, options = {}) {
   const {

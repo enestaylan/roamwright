@@ -1,5 +1,15 @@
+/**
+ * Seeded two-dimensional noise for terrain heights and seamless textures.
+ * @module
+ */
+
 import { createHash } from './random.js';
 
+/**
+ * Create a family of noise samplers that share a world seed. Use `fbm` for
+ * layered terrain, `ridged` for crests and `tfbm` for seamless textures.
+ * @param worldSeed - Integer offset shared by the samplers. Each sample also accepts its own seed.
+ */
 export function createNoise(worldSeed = 0) {
   const hash2 = createHash(worldSeed);
   // Value noise in 0..1, smooth between the integer grid points.

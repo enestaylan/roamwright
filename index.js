@@ -1,3 +1,8 @@
+/**
+ * Core entry points for building geometry, rendering a world, moving through it and dispatching worker jobs. Import these names directly from `roamwright`.
+ * @module
+ */
+
 export { createRenderContext } from './rendering/context.js';
 export { createNoise } from './math/noise.js';
 export { mulberry32 } from './math/random.js';

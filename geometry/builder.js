@@ -1,3 +1,8 @@
+/**
+ * Build static or skinned triangle geometry from coloured parts. Workers can produce attribute arrays for a renderer on the main thread.
+ * @module
+ */
+
 import * as THREE from 'three';
 import { markStill } from '../rendering/still-casters.js';
 import { box, TRS } from './primitives.js';
@@ -128,8 +133,12 @@ function padded(bytes, count, fourth) {
   }
   return out;
 }
+/**
+ * Accumulate coloured primitives and triangles in one set of vertex buffers.
+ * Import this class as `GeometryBuilder` from the package root. Use `parts`
+ * to transfer the result from a worker, or `mesh` to add it directly to a scene.
+ */
 class GB {
-  // merges many coloured parts into one static geometry
   constructor() {
     // Positions, normals and colours fill typed arrays that grow, three numbers to a vertex: four bytes a number where a plain
     // array of numbers takes eight. Normals and colours are kept twice, as floats and as the bytes a compact geometry stores
@@ -267,6 +276,7 @@ class GB {
       }
     return this;
   }
+  /** Append a box with its base centred at (x, y, z). Dimensions are in world units and rotations are in radians. */
   box(x, y, z, sx, sy, sz, col, ry = 0, rx = 0, rz = 0) {
     return this.add(box, col, TRS(x, y, z, sx, sy, sz, ry, rx, rz));
   }
@@ -473,11 +483,12 @@ class GB {
       }
     }
   }
-  // What has been filled, as the arrays a geometry is made of (geometryOf), each of its own size: the room to grow is not kept.
-  // A worker hands these to the page, which has the geometry made of them. `compact`: byte normals and colours, a third of the
-  // memory, for the big generated blocks. `pad` (with compact): four bytes to a normal and a colour, the fourth a normal's 0
-  // and a colour's opaque alpha, as the graphics card keeps them: ANGLE on Metal copies a vertex buffer whose stride is not a
-  // multiple of four bytes into one that is and keeps both, so a three-byte normal or colour took seven bytes of the card.
+  /**
+   * Copy the filled attributes into right-sized typed arrays for `geometryOf`.
+   * The arrays can be transferred to another thread. The builder retains its own storage.
+   * @param {boolean} [compact] - Store normals and colours as normalized bytes.
+   * @param {boolean} [pad] - Pad compact normals and colours to four bytes per vertex for aligned GPU uploads.
+   */
   parts(compact, pad = false) {
     if (this.spent) throw new Error('GB: built again after its parts were let go (release)');
     const filled = array => array.slice(0, this.count),
@@ -532,6 +543,7 @@ class GB {
     if (this.skw) this.skw = [];
     this.spent = true;
   }
+  /** Build a static mesh, release the builder’s backing arrays and attach the mesh to the optional parent. */
   mesh(mat, parent, shadow = true) {
     const m = stillMesh(this.build(), mat, shadow);
     this.release();

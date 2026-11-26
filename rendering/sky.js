@@ -1,5 +1,15 @@
+/**
+ * Render the sky and its depth mask from a cloud field and a cloud dome.
+ * @module
+ */
+
 import * as THREE from 'three';
 
+/**
+ * Combine a cloud field and dome into a sky mesh and a mask for effects passes.
+ * Both meshes share geometry. Call the returned `dispose()` when finished with the pair.
+ * @param options - Outputs from `createCloudField` and `createCloudDome`, plus an optional moon angular radius in radians.
+ */
 export function createSky({ field, dome, moonRadius: MOON_RADIUS = 0.0347 }) {
   const {
     fieldGLSL: CLOUD_FIELD_PARS,

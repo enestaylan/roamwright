@@ -1,4 +1,11 @@
-// A structured-cloneable row-major grid. Membership costs one bit per cell.
+/**
+ * Pack a grid into one bit per cell. The predicate receives the row-major index
+ * `row * width + column`. Transfer the returned `bits.buffer` with the mask when
+ * handing it to a worker.
+ * @param {number} width - Positive integer column count.
+ * @param {number} height - Positive integer row count.
+ * @param {(index: number) => boolean} includesIndex - Selects cells to mark.
+ */
 export function packCellMask(width, height, includesIndex) {
   if (!(Number.isSafeInteger(width) && width > 0 && Number.isSafeInteger(height) && height > 0))
     throw new RangeError('Cell mask dimensions must be positive integers');
@@ -10,7 +17,7 @@ export function packCellMask(width, height, includesIndex) {
   return { width, height, bits };
 }
 
-// Coordinates are in cell units, with the origin at the first cell's lower edge.
+/** Read membership at cell coordinates, rounding down within a cell. Coordinates outside the grid return false. */
 export function cellIsSet(mask, x, y) {
   if (!(x >= 0 && x < mask.width && y >= 0 && y < mask.height)) return false;
   const i = Math.floor(y) * mask.width + Math.floor(x);

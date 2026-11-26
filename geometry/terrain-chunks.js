@@ -1,3 +1,8 @@
+/**
+ * Render a heightfield in chunks and change each chunk’s mesh resolution as the camera moves.
+ * @module
+ */
+
 import * as THREE from 'three';
 import { SRGB2LIN } from '../math/color.js';
 import { clamp } from '../math/scalar.js';
