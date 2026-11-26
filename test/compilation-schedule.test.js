@@ -30,3 +30,37 @@ test('early builds, scene readiness, disposal and incremental first use', async 
   start.beginWarm();
   assert.deepEqual(phases, [false, false, false, true]);
 });
+
+test('a blocking batch submits attached subtrees once and waits for readiness', async () => {
+  const scene = {}, info = {programs: []}, visits = [], visible = [], initialized = [];
+  const roots = [true, false, true].map((shown, index) => ({
+    parent: index === 0 ? scene : null,
+    traverse(visit) { visit(this); },
+    traverseVisible(visit) { if (shown) visit(this); }
+  }));
+  const program = {};
+  let finish, calls = 0;
+  const schedule = createCompilationSchedule({
+    renderer: {info}, scene,
+    beginCompiles(root, warmed, blocking) {
+      calls++;
+      assert.ok(blocking);
+      root.traverse(node => visits.push(node));
+      root.traverseVisible(node => visible.push(node));
+      info.programs.push(program);
+      return new Promise(resolve => { finish = resolve; });
+    },
+    putToUse() { assert.fail('unexpected interactive warmup'); },
+    useProgram(p) { initialized.push(p); }
+  });
+  await schedule.warmShaders([], {blocking: true});
+  const done = schedule.warmShaders(roots, {blocking: true});
+  assert.deepEqual(initialized, []);
+  finish();
+  await done;
+  assert.equal(calls, 1);
+  assert.deepEqual(visits, roots);
+  assert.deepEqual(visible, [roots[2]]);
+  assert.deepEqual(roots.map(root => root.parent), [scene, null, null]);
+  assert.deepEqual(initialized, [program]);
+});
