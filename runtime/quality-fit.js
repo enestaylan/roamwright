@@ -14,7 +14,8 @@ const FRAME_MS = 1000 / 60, // the target: sixty frames a second
   SETTLE_MS = 3000, // allow uploads and shader compilation to settle after reconfiguration
   ARRIVAL_SETTLE_MS = 10000, // initial asset uploads may take longer than a preset change
   SCALES = [1, 0.85, 0.75, 0.67]; // render resolution as a fraction of each viewport dimension
-export function createQualityFit({ state, post, cardBlocks, cardDone, store, deviceQuality, applyQuality, setDrawScale, warmShaders, emit, noteLog }) {
+/** Set adaptiveResolution to false to fit quality presets at the application’s native output size. Saved scales are preserved. */
+export function createQualityFit({ state, post, cardBlocks, cardDone, store, deviceQuality, applyQuality, setDrawScale, warmShaders, emit, noteLog, adaptiveResolution = true }) {
   const { keepChoice, keepFit, keepScale, keptChoice, keptFit, keptOnce, keptScale } = store;
   const fit = {
     running: false,
@@ -37,10 +38,10 @@ export function createQualityFit({ state, post, cardBlocks, cardDone, store, dev
 
   // Applies a preset, drawn at SCALES[scaleAt], and begins timing afresh once the world has been made again for it.
   function change(name, scaleAt = 0) {
-    fit.scaleAt = scaleAt;
-    setDrawScale(SCALES[scaleAt], true); // applyQuality sizes the picture
+    fit.scaleAt = adaptiveResolution ? scaleAt : 0;
+    if (adaptiveResolution) setDrawScale(SCALES[fit.scaleAt], true); // applyQuality sizes the picture
     applyQuality(name);
-    keepScale(name, SCALES[scaleAt]);
+    if (adaptiveResolution) keepScale(name, SCALES[fit.scaleAt]);
     warmShaders();
     rest();
   }
@@ -51,7 +52,7 @@ export function createQualityFit({ state, post, cardBlocks, cardDone, store, dev
     setDrawScale(SCALES[at]); // a resize, which begins the timing afresh
   }
   // May the fit draw the world smaller rather than step down? Where post-processing draws it, at Medium, or at a preset chosen by hand.
-  const scalable = () => post.on && (!!fit.chosen || state.quality === 'medium');
+  const scalable = () => adaptiveResolution && post.on && (!!fit.chosen || state.quality === 'medium');
   function rest() {
     fit.timing = null;
     fit.costs.length = 0;
@@ -75,8 +76,8 @@ export function createQualityFit({ state, post, cardBlocks, cardDone, store, dev
     fit.chosen = chosen;
     fit.running = true;
     const name = keptOnce(true) ?? fit.chosen ?? fit.suggested;
-    fit.scaleAt = Math.max(0, SCALES.indexOf(keptScale(name)));
-    setDrawScale(SCALES[fit.scaleAt], true);
+    fit.scaleAt = adaptiveResolution ? Math.max(0, SCALES.indexOf(keptScale(name))) : 0;
+    if (adaptiveResolution) setDrawScale(SCALES[fit.scaleAt], true);
     applyQuality(name);
     rest();
   }
