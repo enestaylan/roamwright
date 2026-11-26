@@ -201,18 +201,8 @@ export function createWalkFit({ collideIn, hit, onDeck, worldSpace }, { body = 0
   };
 }
 
-/**
- * A level of detail chosen with hysteresis: 3 near, 2 medium, 1 light, 0 past them. `near`, `medium` and `light` are each level's
- * outer edge in metres at a lens of 1, as [for one outside it, for one already inside it]: an edge lies a little further out for
- * one inside, so that nobody standing on it changes every frame. `d2` is the distance squared, `previous` the level last frame,
- * `lens` how much nearer the lens brings things (edges move out with it).
- */
-export function detailLevel(d2, previous, lens, near, medium, light) {
-  const n = (previous === 3 ? near[1] : near[0]) * lens,
-    m = (previous >= 2 ? medium[1] : medium[0]) * lens,
-    l = (previous >= 1 ? light[1] : light[0]) * lens;
-  return d2 < n * n ? 3 : d2 < m * m ? 2 : d2 < l * l ? 1 : 0;
-}
+// Kept for applications importing the crowd selector from its original module.
+export { detailLevel } from '../rendering/detail-range.js';
 
 /** Turns a heading `dir` towards `want` at `rate` a second over `gap` seconds, at once after a gap of more than `snap` seconds. */
 export function easeHeading(dir, want, gap, rate, snap = 0.2) {

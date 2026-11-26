@@ -76,6 +76,8 @@ renderer.render(scene, camera);
 
 Import any module from `roamwright/<folder>/<name>.js`. Each area below names its main modules first. Its other modules are listed after them. See each module’s source for its parameters, and the [tests](test) and browser fixtures for complete setups.
 
+For perspective level of detail, use `detailLens(camera, referenceFov)` from `rendering/detail-range.js` once per view. Pass its magnification to `withinDetailRange(distanceSquared, wasNear, magnification, [enter, leave])`. Distances are in world units at the reference field of view. Keep each object’s previous boolean result. An undefined first result selects at the midpoint. The same module exports the three-band `detailLevel` selector for crowds.
+
 For frame diagnostics, `createFramePacingMonitor({ minimumFps, windowMs, windows, onSlow })` from `runtime/frame-pacing.js` accepts displayed frame intervals in milliseconds via `sample(ms)`. The callback receives the average FPS and duration of the first consecutive slow windows. Call `reset()` on a pause or view change.
 
 For terrain queries, `packCellMask(width, height, includesIndex)` from `geometry/cell-mask.js` packs row-major membership into a transferable byte array (`mask.bits`). Read it with `cellIsSet(mask, column, row)`. Out-of-bounds coordinates return false.
