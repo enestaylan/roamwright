@@ -10,6 +10,14 @@ test('perspective projection and an aspect-independent pixel budget', () => {
   assert.ok(Math.abs(perspectivePointScale(600, 90) - 300) < 1e-10);
 });
 
+test('rectangular output limits preserve viewport aspect and native density', () => {
+  const limits = {width: 3840, height: 2160};
+  for (const [w, h, dpr, expected] of [
+    [1920, 1080, 2, 2], [1280, 720, 1, 1], [2560, 1080, 2, 1.5],
+    [1728, 1117, 2, 2160 / 1117], [1024, 1366, 2, 2160 / 1366]
+  ]) assert.equal(fittedPixelRatio(w, h, dpr, limits), expected);
+});
+
 test('early builds, scene readiness, disposal and incremental first use', async () => {
   const scene = {}, group = {}, info = {programs: []}, used = [], queued = [];
   const phases = [];
