@@ -1,4 +1,5 @@
 import { TAU, clamp, lerp, sstep } from '../math/scalar.js';
+import { ankleOffset, solePitch, solveBipedLeg } from './biped-leg.js';
 
 /** Create one stride solver for a rig, ground sampler and motion profile. */
 export function createBipedStride({ rig, foot, pace, ground }) {
@@ -30,41 +31,6 @@ export function createBipedStride({ rig, foot, pace, ground }) {
     roll: 0,
   };
 
-  // Two-bone leg from hip to ankle in the fore-and-aft plane: for an ankle at (forward, up) from the hip, the thigh's and the
-  // knee's rotation, written into _leg.
-  function solveLeg(forward, up) {
-    const D = clamp(Math.sqrt(forward * forward + up * up), 0.3, rig.thigh + rig.shin - 1e-4),
-      bend = Math.acos(clamp((D * D - rig.thigh * rig.thigh - rig.shin * rig.shin) / (2 * rig.thigh * rig.shin), -1, 1));
-    _leg[0] = -(Math.atan2(forward, -up) + Math.atan2(rig.shin * Math.sin(bend), rig.thigh + rig.shin * Math.cos(bend)));
-    _leg[1] = bend;
-  }
-  // The pitch of a foot's sole (toes down is more) at share u of its stride: it lands on its heel with the toes up by `strike`,
-  // lies flat while the body passes over it, rolls up onto its toes until the heel has risen by `push`, and in the air comes
-  // round from toes down to toes up. A step backwards (`back`) does it the other way round.
-  function soleAt(u, duty, back, strike, push) {
-    const planted = u < duty;
-    let s = planted ? u / duty : (u - duty) / (1 - duty);
-    if (back) s = 1 - s;
-    return planted ? push * sstep(foot.riseAt, 1, s) - strike * sstep(foot.flatAt, 0, s) : lerp(push, -strike, sstep(0.08, 0.8, s));
-  }
-  // Where a foot's ankle is from the point of its sole under the ankle when it lies flat, written into _ankle (forward, up), for a
-  // sole pitched by `pitch` (about the ball of the foot with the heel up, about the heel with the toes up) on ground that itself
-  // pitches by `slope` (both radians, toes down is more).
-  function ankleAt(pitch, slope) {
-    const c = Math.cos(pitch),
-      s = Math.sin(pitch),
-      forward = pitch >= 0 ? rig.ballOffset - rig.ballOffset * c + rig.ankleHeight * s : -rig.heelOffset + rig.heelOffset * c + rig.ankleHeight * s,
-      up = pitch >= 0 ? rig.ballOffset * s + rig.ankleHeight * c : -rig.heelOffset * s + rig.ankleHeight * c;
-    if (slope) {
-      const cs = Math.cos(slope),
-        ss = Math.sin(slope);
-      _ankle[0] = forward * cs + up * ss;
-      _ankle[1] = up * cs - forward * ss;
-    } else {
-      _ankle[0] = forward;
-      _ankle[1] = up;
-    }
-  }
   // One foot (0 the left, 1 the right) at share u of its stride, kept in a.feet as how far forward of the middle it is and how
   // high. Striding, a foot on the ground stays where it was set down, so it is carried back as the body goes forward, and a foot
   // in the air swings from where it left the ground to where it will land; `drift` makes it leave and meet the ground moving as
@@ -182,8 +148,8 @@ export function createBipedStride({ rig, foot, pace, ground }) {
       strike = roll * lerp(foot.heelStrike[0], foot.heelStrike[1], run),
       push = roll * lerp(foot.pushOff[0], foot.pushOff[1], run);
     // each sole rolls from heel to toe through its stride
-    F[6] += ((striding ? soleAt(uL, duty, v < 0, strike, push) : 0) - F[6]) * soleEase;
-    F[7] += ((striding ? soleAt(uR, duty, v < 0, strike, push) : 0) - F[7]) * soleEase;
+    F[6] += ((striding ? solePitch(foot, uL, duty, v < 0, strike, push) : 0) - F[6]) * soleEase;
+    F[7] += ((striding ? solePitch(foot, uR, duty, v < 0, strike, push) : 0) - F[7]) * soleEase;
     let groundL = 0,
       groundR = 0,
       over = 0,
@@ -234,10 +200,10 @@ export function createBipedStride({ rig, foot, pace, ground }) {
     F[9] += (clamp(slopeR, -foot.maxSlopeAngle, foot.maxSlopeAngle) - F[9]) * soleEase;
     F[10] += (clamp(across, -foot.maxSlopeAngle, foot.maxSlopeAngle) - F[10]) * soleEase;
     // where each ankle then is: forward of the middle, and above the ground
-    ankleAt(F[6], F[8]);
+    ankleOffset(_ankle, rig, F[6], F[8]);
     const ankleZL = zL + _ankle[0],
       ankleYL = groundL + airL * (1 + over) + _ankle[1];
-    ankleAt(F[7], F[9]);
+    ankleOffset(_ankle, rig, F[7], F[9]);
     const ankleZR = zR + _ankle[0],
       ankleYR = groundR + airR * (1 + over) + _ankle[1];
     // the hips ride as high as the pose asks and the planted legs allow
@@ -248,12 +214,12 @@ export function createBipedStride({ rig, foot, pace, ground }) {
     // each leg from the hip to its ankle, in the leaning trunk's own frame
     let z = ankleZL - hipAt - jointZ,
       y = ankleYL - a.hip + jointY;
-    solveLeg(z * cosL - y * sinL, y * cosL + z * sinL);
+    solveBipedLeg(_leg, rig, z * cosL - y * sinL, y * cosL + z * sinL, 0.3);
     step.thighL = _leg[0];
     step.kneeL = _leg[1];
     z = ankleZR - hipAt + jointZ;
     y = ankleYR - a.hip - jointY;
-    solveLeg(z * cosL - y * sinL, y * cosL + z * sinL);
+    solveBipedLeg(_leg, rig, z * cosL - y * sinL, y * cosL + z * sinL, 0.3);
     step.thighR = _leg[0];
     step.kneeR = _leg[1];
     step.soleL = F[6] + F[8] - lean; // against the leaning trunk the legs are solved in
